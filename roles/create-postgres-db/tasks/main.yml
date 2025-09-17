@@ -1,0 +1,15 @@
+---
+
+- name: Create Postgres DB in Docker Container
+  become: true
+  raw: docker exec -it cloudbox-postgres psql -U {{ postgres_user }} -c "CREATE DATABASE {{ databasename }};"
+
+- name: Grant all priveleges on database
+  become: true
+  raw: docker exec -it cloudbox-postgres psql -U {{ postgres_user }} -c "GRANT ALL PRIVILEGES ON DATABASE {{ databasename }} TO {{ postgres_user }};"
+  
+- set_stats:
+    data:
+      db_info:
+        databasename: "{{ databasename }}"
+        postgres_user: "{{ postgres_user }}"

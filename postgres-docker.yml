@@ -1,0 +1,13 @@
+---
+
+- hosts: all
+  gather_facts: false
+  tasks:
+    - include_role:
+        name: docker-setup
+    - include_role:
+        name: postgres-docker
+  vars:
+    distrib_store: "{{ _REPOS.distrib_store }}"
+    docker_registry: "{{ _REPOS.docker_registry }}"
+    docker_image_path: "{{ _REPOS.docker_image_path }}"

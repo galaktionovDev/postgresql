@@ -1,0 +1,8 @@
+---
+
+- hosts: all
+  gather_facts: false
+  tasks:
+    - include_role:
+        name: create-postgres-db
+        

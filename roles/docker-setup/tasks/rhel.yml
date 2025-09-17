@@ -1,0 +1,57 @@
+# - name: Download docker distrib
+#   get_url:
+#     url: "{{ distrib_store }}/{{ distrib_name }}/{{ distrib_version }}/{{ distrib_name }}.{{ archive_ext }}"
+#     dest: "{{ docker_path }}/{{ distrib_name }}.{{ archive_ext }}"
+#     username: "{{ gitea_user }}"
+#     password: "{{ gitea_password }}"
+#     validate_certs: false
+
+# - name: Unarchive docker distrib
+#   unarchive:
+#     src: "{{ docker_path }}/{{ distrib_name }}.{{ archive_ext }}"
+#     dest: "{{ docker_path }}/"
+#     remote_src: yes
+
+# - name: Install docker .rpm packages
+#   raw: "dnf --disablerepo=* --skip-broken --quiet -y localinstall {{ docker_path }}/*.rpm"
+#   when: ansible_distribution.split(' ') | first | lower not in ['centos']
+
+# - name: Install docker .rpm packages
+#   raw: "yum --disablerepo=* --skip-broken --quiet -y localinstall {{ docker_path }}/*.rpm"
+#   when: ansible_distribution.split(' ') | first | lower in ['centos']
+
+
+# - name: Install chrony
+#   yum:
+#     name: docker
+#     state: present 
+#     enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+#     disablerepo: "*"
+
+- name: Install Docker using dnf
+  dnf:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-scan-plugin
+      - docker-compose-plugin
+      - docker-buildx-plugin
+    state: present
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower not in ['centos']
+
+- name: Install Docker using yum
+  yum:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-scan-plugin
+      - docker-compose-plugin
+      - docker-buildx-plugin
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['centos']

@@ -1,0 +1,11 @@
+---
+
+- name: Create Postgres User
+  become: true
+  raw: docker exec -it cloudbox-postgres psql -U {{ postgres_user }} -c "CREATE USER {{ username }} WITH PASSWORD '{{ user_password }}';"
+
+- set_stats:
+    data:
+      db_users:
+        username: "{{ username }}"
+     

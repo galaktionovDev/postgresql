@@ -1,0 +1,37 @@
+---
+
+- name: Collect ansible distribution and major version facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+
+- debug:
+    var: ansible_distribution
+
+- name: Include docker install for debian deriatives
+  include_tasks: debian.yml
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Include docker install for rhel deriatives
+  include_tasks: rhel.yml
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Ensure /etc/docker directory exists
+  file:
+    path: /etc/docker
+    state: directory
+    mode: '0755'
+
+- name: Add gitea to trusted insecure registries
+  template:
+    src: daemon.json.j2
+    dest: "/etc/docker/daemon.json"
+
+
+- name: Ensure that docker service is active
+  systemd:
+    name: docker
+    state: restarted
+    daemon_reload: yes
+    enabled: yes

@@ -1,0 +1,32 @@
+---
+
+- name: Revoke all roles before grant
+  become: true
+  raw: docker exec -it cloudbox-postgres psql -U {{ postgres_user }} -d {{ databasename }} -c "REVOKE pg_read_all_data FROM {{ username }};"
+ 
+- name: Revoke all add roles before grant
+  become: true
+  raw: docker exec -it cloudbox-postgres psql -U {{ postgres_user }} -d {{ databasename }} -c "REVOKE USAGE, CREATE ON SCHEMA public FROM {{ username }};"
+  
+- name: Grant role on database
+  become: true
+  raw: docker exec -it cloudbox-postgres psql -U {{ postgres_user }} -d {{ databasename }} -c "GRANT pg_read_all_data TO {{ username }};"
+  when: rolename | lower == 'read'
+
+- name: Grant additional role on database when writer
+  become: true
+  raw: docker exec -it cloudbox-postgres psql -U {{ postgres_user }} -d {{ databasename }} -c "GRANT pg_read_all_data TO {{ username }};"
+  when: rolename | lower == 'read/write'
+ 
+- name: Grant additional role 2 on database when writer
+  become: true
+  raw: docker exec -it cloudbox-postgres psql -U {{ postgres_user }} -d {{ databasename }} -c "GRANT USAGE, CREATE ON SCHEMA public TO {{ username }};"
+  when: rolename | lower == 'read/write'
+ 
+- set_stats:
+    data:
+      db_roles:
+        username: "{{ username }}"
+        rolename: "{{ rolename }}"
+        databasename: "{{ databasename }}"
+        

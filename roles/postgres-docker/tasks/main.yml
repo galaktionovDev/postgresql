@@ -1,0 +1,8 @@
+---
+
+- name: Start a postgres container with 8080 port exposed
+  raw: "docker run -d --restart=always --name cloudbox-postgres -e POSTGRES_PASSWORD={{ postgres_password }} -v {{ app_data_volume_name }}:{{ container_data_path }} -p 5432:5432 {{ nexus_docker_url }}/postgres:{{ postgres_version }}"
+
+- set_stats:
+    data:
+      connection_url: "{{ 'jdbc:postgresql://' + machine['default_v4_address'] + ':5432/postgres' }}"

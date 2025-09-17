@@ -1,0 +1,11 @@
+---
+
+app_name: "postgres"
+ansible_become: true
+distrib_version: "1.0"
+distrib_name: "postgres-docker-image"
+archive_ext: "tar"
+docker_path: "/tmp/docker-images"
+app_volume_prefix: "cloud"
+app_data_volume_name: "{{ app_volume_prefix }}-{{ app_name }}"
+container_data_path: "/var/lib/postgresql/data"
