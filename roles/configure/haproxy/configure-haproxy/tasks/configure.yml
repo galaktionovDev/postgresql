@@ -1,0 +1,62 @@
+---
+
+- name: Ensure HAProxy errors directory is created
+  become: true
+  file:
+    path: /etc/haproxy/errors
+    state: directory
+
+- name: Create HAProxy configuration file
+  become: true
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+
+- name: Gather information about packages installed
+  package_facts:
+    manager: auto
+
+- name: Allow HAProxy and PostgreSQL ports on RHEL-like distributions
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - "{{ server_port }}"
+    - "{{ haproxy_port }}"
+  when: "'firewalld' in ansible_facts.packages"
+
+- name: Allow HAProxy and PostgreSQL ports on Debian-like distributions
+  become: true
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+  loop:
+    - "{{ server_port }}"
+    - "{{ haproxy_port }}"
+  when: "'ufw' in ansible_facts.packages"
+
+- name: Configure SELinux to allow HAProxy and Patroni connections
+  become: true
+  block:
+    - name: Allow HAProxy and Patroni ports in SELinux
+      community.general.seport:
+        ports: "{{ item }}"
+        proto: tcp
+        setype: postgresql_port_t
+        state: present
+      loop:
+        - "{{ server_port }}"
+        - "{{ patroni_port }}"
+        - "{{ haproxy_port }}"
+
+    - name: Allow HAProxy to connect to backend servers
+      ansible.builtin.seboolean:
+        name: haproxy_connect_any
+        state: yes
+        persistent: yes
+  when: 
+    - ansible_selinux is defined
+    - ansible_selinux.status != 'disabled'

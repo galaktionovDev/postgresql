@@ -1,0 +1,44 @@
+---
+
+- name: Restart Patroni
+  become: true
+  systemd_service:
+    name: patroni
+    state: restarted
+    daemon_reload: true
+
+- name: Wait until Patroni hosts are operational
+  become: true
+  uri:
+    url: "https://{{ patroni_endpoint }}:{{ patroni_port }}/health"
+    ca_path: "{{ postgresql_directory }}/ssl/ca.crt"
+    client_cert: "{{ postgresql_directory }}/ssl/postgres-{{ patroni_endpoint | replace('.', '_') }}.crt"
+    client_key: "{{ postgresql_directory }}/ssl/postgres-{{ patroni_endpoint | replace('.', '_') }}.key"
+    validate_certs: true
+  register: patroni_host_status
+  retries: 10
+  delay: 5
+  until: patroni_host_status.status == 200
+
+- name: Show Patroni hosts status
+  debug:
+    msg: "Role: {{ patroni_host_status.json.role }}, state: {{ patroni_host_status.json.state }}"
+
+- name: Wait until Patroni cluster is operational
+  become: true
+  uri:
+    url: "https://{{ patroni_endpoint }}:{{ patroni_port }}/cluster"
+    ca_path: "{{ postgresql_directory }}/ssl/ca.crt"
+    client_cert: "{{ postgresql_directory }}/ssl/postgres-{{ patroni_endpoint | replace('.', '_') }}.crt"
+    client_key: "{{ postgresql_directory }}/ssl/postgres-{{ patroni_endpoint | replace('.', '_') }}.key"
+    validate_certs: true
+  register: patroni_cluster_status
+  run_once: true
+  retries: 10
+  delay: 5
+  until: patroni_cluster_status.status == 200
+
+- name: Show Patroni cluster status
+  debug:
+    msg: "{{ patroni_cluster_status.json.members }}"
+  run_once: true

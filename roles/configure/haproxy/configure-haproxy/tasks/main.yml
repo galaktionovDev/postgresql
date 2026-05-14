@@ -1,0 +1,20 @@
+---
+
+- name: Include tasks for HAProxy packages installation
+  import_tasks: install.yml
+  tags:
+    - install-haproxy
+
+- name: Set Patroni edpoint fact
+  set_fact:
+    patroni_endpoint: "{{ hostvars[inventory_hostname].ansible_host }}"
+
+- name: Include tasks for HAProxy configuration
+  import_tasks: configure.yml
+  tags:
+    - configure-haproxy
+
+- name: Include tasks for HAProxy start
+  import_tasks: start.yml
+  tags:
+    - start-haproxy

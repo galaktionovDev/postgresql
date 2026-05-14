@@ -1,0 +1,102 @@
+---
+
+- name: Get database list
+  community.postgresql.postgresql_info:
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: postgres
+    login_password: "{{ postgresql_admin_password }}"
+    filter: databases
+  register: db_info
+
+- name: Revoke database privileges
+  community.postgresql.postgresql_privs:
+    database: "{{ item }}"
+    role: "{{ postgresql_username }}"
+    type: database
+    privs: ALL
+    state: absent
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: postgres
+    login_password: "{{ postgresql_admin_password }}"
+  loop: "{{ db_info.databases.keys() | reject('match', 'template.*|postgres') | list }}"
+
+- name: Revoke schema privileges and Reassign ownership
+  community.postgresql.postgresql_privs:
+    database: "{{ item }}"
+    role: "{{ postgresql_username }}"
+    objs: public
+    type: schema
+    privs: ALL
+    state: absent
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: postgres
+    login_password: "{{ postgresql_admin_password }}"
+  loop: "{{ db_info.databases.keys() | reject('match', 'template.*|postgres') | list }}"
+
+- name: Reassign objects owned by user to postgres
+  community.postgresql.postgresql_owner:
+    db: "{{ item }}"
+    new_owner: postgres
+    reassign_owned_by: "{{ postgresql_username }}"
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: postgres
+    login_password: "{{ postgresql_admin_password }}"
+  loop: "{{ db_info.databases.keys() | reject('match', 'template.*|postgres') | list }}"
+
+- name: Ensure user is deleted
+  community.postgresql.postgresql_user:
+    name: "{{ postgresql_username }}"
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: postgres
+    login_password: "{{ postgresql_admin_password }}"
+    login_db: postgres
+    state: absent
+
+- name: Delete connection rule for user {{ postgresql_username }} to any database (Single instance)
+  become: true
+  community.general.postgresql_pg_hba:
+    dest: "{{ postgresql_data_directory }}/pg_hba.conf"
+    contype: host
+    databases: all
+    users: "{{ postgresql_username }}"
+    address: all
+    method: md5
+    state: absent
+  when: deployment_option == 'single-instance'
+  notify:
+    - Reload Postgresql service
+
+- name: Delete connection rule for user {{ postgresql_username }} to any database (High availability)
+  block:
+    - name: Get current Patroni configuration
+      ansible.builtin.uri:
+        url: "http://{{ postgresql_server_address }}:{{ patroni_port }}/config"
+        method: GET
+      register: current_patroni_config
+
+    - name: Update pg_hba (remove user rule)
+      ansible.builtin.uri:
+        url: "http://{{ postgresql_server_address }}:{{ patroni_port }}/config"
+        method: PATCH
+        body_format: json
+        body:
+          postgresql:
+            pg_hba: "{{ updated_pg_hba }}"
+        status_code: 200
+      vars:
+        target_pattern: "all {{ postgresql_username }} 0.0.0.0/0"
+        updated_pg_hba: "{{ current_patroni_config.json.postgresql.pg_hba | reject('search', target_pattern) | list }}"
+      changed_when: current_patroni_config.json.postgresql.pg_hba | length > updated_pg_hba | length
+
+  when: deployment_option == 'high-availability'
+
+- set_stats:
+    data:
+      db_users:
+        username: "{{ username }}"
+     

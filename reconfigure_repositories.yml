@@ -1,0 +1,61 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Set repository for Ubuntu
+  apt_repository:
+    repo: "{{ item.repo }}"
+    state: "{{ item.state }}"
+  loop:
+    - repo: "deb {{ nexus_url }}/repository/products-apt/ focal main"
+      state: absent
+    - repo: "deb {{ nexus_url }}/repository/products-apt-ubuntu-{{ ansible_distribution_major_version }}/ {{ 'jammy' if ansible_distribution_major_version == '22' else 'noble' }} main"
+      state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu']
+
+- name: Set repository for AstraLinux 1.7
+  become: true
+  lineinfile:
+    path: /etc/apt/sources.list.d/cld-repository.list
+    regexp: "^deb"
+    line: "deb {{ nexus_url }}/repository/products-apt-alse-1-7/ main main"
+    insertafter: EOF
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['astra'] and ansible_distribution_version == '1.7_x86-64'
+
+- name: Set repository for AstraLinux 1.8
+  apt_repository:
+    repo: "{{ item.repo }}"
+    state: "{{ item.state }}"
+  loop:
+    - repo: "deb {{ nexus_url }}/repository/products-apt/ focal main"
+      state: absent
+    - repo: "deb {{ nexus_url }}/repository/products-apt-alse-{{ ansible_distribution_major_version }}-{{ ansible_distribution_version.split('.')[1][0] }}/ main main"
+      state: present
+  when: ansible_distribution.split(' ') | first | lower in ['astra'] and ansible_distribution_version == '1.8_x86-64'
+
+- name: Set repository for Debian
+  apt_repository:
+    repo: "{{ item.repo }}"
+    state: "{{ item.state }}"
+  loop:
+    - repo: "deb {{ nexus_url }}/repository/products-apt/ focal main"
+      state: absent
+    - repo: "deb {{ nexus_url }}/repository/products-apt-debian-{{ ansible_distribution_major_version }}/ bullseye main"
+      state: present
+  when: ansible_distribution.split(' ') | first | lower in ['debian']
+
+- name: Configure repository for el8
+  yum_repository:
+    name: cld-repository-el8
+    baseurl: "{{ nexus_url }}/repository/products-yum/el8/"
+    description: "A repository for el8 packages"
+    enabled: true
+    gpgcheck: false
+    module_hotfixes: true
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']

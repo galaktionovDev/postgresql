@@ -1,0 +1,48 @@
+---
+
+- name: Create directory for certificates
+  file:
+    path: "{{ playbook_dir }}/generated/"
+    state: directory
+
+- name: Create directory for CA files
+  file:
+    path: "{{ playbook_dir }}/generated/ca/"
+    state: directory
+
+- name: Include tasks for Certificate Authority certificate generation
+  include_tasks: ca.yml
+  when: generate_ca
+  tags:
+    - generate-ca
+
+- name: Fail if CA generation is disabled and custom CA files paths is not specified
+  fail:
+    msg: CA files generation is disabled and no custom CA files paths are provided!
+  when:
+    - not generate_ca
+    - (ca_private_key_path is undefined) or (ca_certificate_request_path is undefined) or (ca_certificate_path is undefined)
+  tags:
+    - generate-ca
+
+- name: Put CA files in case CA files generation is disabled
+  copy:
+    src: "{{ item }}"
+    dest: "{{ playbook_dir }}/generated/ca/"
+  loop:
+    - "{{ ca_private_key_path }}"
+    - "{{ ca_certificate_request_path }}"
+    - "{{ ca_certificate_path }}"
+  when: not generate_ca
+  tags:
+    - generate-ca
+
+- name: Include tasks for etcd certififcates generation
+  include_tasks: etcd.yml
+  tags:
+    - generate-etcd
+
+- name: Include tasks for PostgreSQL certificates generation
+  include_tasks: postgres.yml
+  tags:
+    - generate-postgresql

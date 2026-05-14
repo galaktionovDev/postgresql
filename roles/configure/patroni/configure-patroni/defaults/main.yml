@@ -1,0 +1,10 @@
+---
+
+postgresql_version: 18
+server_port: 5432
+patroni_config_directory: /etc/patroni/
+patroni_port: 8008
+etcd_config_directory: /etc/etcd
+postgresql_directory: /usr/local/pgsql
+max_connections: 100
+shared_buffers: 256MB

@@ -1,0 +1,54 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Install Patroni package for Debian-based distributions
+  become: true
+  apt:
+    name:
+      - patroni
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install Patroni packages for RHEL-based distributions
+  become: true
+  yum:
+    name:
+      - patroni
+      - patroni-etcd
+    state: present
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Install Ansible packages for Debian-based distributions
+  become: true
+  apt:
+    name:
+      - acl
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install Ansible packages for RHEL-based distributions
+  become: true
+  yum:
+    name:
+      - acl
+    state: present
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Install Patroni packages for AstraLinux 1.7
+  become: true
+  apt:
+    name:
+      - python3-etcd
+      - python3-consul
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['astra'] and ansible_distribution_version == '1.7_x86-64'

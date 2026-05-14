@@ -1,0 +1,37 @@
+---
+- name: Perform migration
+  hosts: localhost
+
+  pre_tasks:
+    - name: Fail if one of the extra variables is not set
+      fail:
+        msg: "Extra variable '{{ item }}' is not set."
+      loop:
+        - server_port
+        - admin_password
+        - migration_script
+        - migration_db
+      when: 
+        - item is undefined
+        - perform_migration | default(false) | bool
+
+  tasks:
+    - name: Include role for PostgreSQL migration
+      vars:
+        connection_type: remote
+        postgresql_server_address: "{{ hostvars[groups['postgresql_entrypoint'][0]]['ansible_host'] }}"
+        postgresql_server_port: "{{ server_port }}"
+        postgresql_migration_database: "{{ migration_db }}"
+        postgresql_username: postgres
+        postgresql_password: "{{ admin_password }}"
+        postgresql_migration_script: "{{ migration_script }}"
+        postgresql_database_owner: "{{ database_owner | default('postgres') }}"
+      include_role:
+        name: post-installation/perform-postgresql-migration
+        apply:
+          delegate_to: "{{ groups['databases'][0] }}"
+          tags:
+            - perform-migration
+      tags:
+        - perform-migration
+      when: perform_migration | default(false) | bool

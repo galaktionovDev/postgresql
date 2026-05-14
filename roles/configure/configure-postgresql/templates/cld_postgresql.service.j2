@@ -1,0 +1,23 @@
+[Unit]
+Description=PostgreSQL database server
+Documentation=man:postgres(1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=postgres
+{% if ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian'] -%}
+ExecStart={{ postgresql_binary_directory.apt }}/postgres -D {{ postgresql_data_directory }} -c config_file={{ postgresql_data_directory }}/postgresql.conf
+{% elif ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos'] -%}
+ExecStart={{ postgresql_binary_directory.yum }}/postgres -D {{ postgresql_data_directory }} -c config_file={{ postgresql_data_directory }}/postgresql.conf
+{% endif -%}
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutSec=infinity
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

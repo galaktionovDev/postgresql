@@ -1,0 +1,44 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Install PostgreSQL package for Debian-based distributions
+  become: true
+  apt:
+    name: "postgresql-{{ postgresql_version }}"
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install PostgreSQL package for RHEL-based distributions
+  become: true
+  yum:
+    name: "postgresql{{ postgresql_version }}-server"
+    state: present
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Install Ansible packages for Debian-based distributions
+  become: true
+  apt:
+    name:
+      - acl
+      - python3-psycopg2
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install Ansible packages for RHEL-based distributions
+  become: true
+  yum:
+    name:
+      - acl
+      - python3-psycopg2
+    state: present
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']

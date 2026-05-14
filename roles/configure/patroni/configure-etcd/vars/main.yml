@@ -1,0 +1,6 @@
+---
+
+etcd_binaries:
+  - etcd
+  - etcdctl
+  - etcdutl

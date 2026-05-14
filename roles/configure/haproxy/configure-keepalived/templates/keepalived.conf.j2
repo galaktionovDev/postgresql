@@ -1,0 +1,31 @@
+global_defs {
+    enable_script_security
+    script_user keepalived_script
+}
+
+vrrp_script check_haproxy {
+    script "/etc/keepalived/check_haproxy.sh"
+    interval 2
+    fall 3
+    rise 2
+}
+
+{% set host_index = ansible_play_hosts_all.index(inventory_hostname) %}
+vrrp_instance VI_1 {
+    state {{ 'MASTER' if host_index == 0 else 'BACKUP' }}
+    interface {{ ansible_default_ipv4.interface }}
+    virtual_router_id 51
+    priority {{ 100 - host_index * 10 }}
+    
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ keepalived_password }}
+    }
+    virtual_ipaddress {
+        {{ keepalived_address }}
+    }
+    track_script {
+        check_haproxy
+    }
+}

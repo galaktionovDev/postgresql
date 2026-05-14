@@ -1,0 +1,29 @@
+---
+
+- name: Create Keepalived scripts user
+  become: true
+  user:
+    name: keepalived_script
+    system: true
+    shell: /bin/false
+
+- name: Ensure Keepalived configuration directory is created
+  become: true
+  file:
+    path: /etc/keepalived
+    state: directory
+
+- name: Create script to check if HAProxy is running or not
+  become: true
+  template:
+    src: check_haproxy.sh.j2
+    dest: /etc/keepalived/check_haproxy.sh
+    mode: '0750'
+    owner: keepalived_script
+    group: keepalived_script
+
+- name: Create Keepalived configuration file
+  become: true
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf

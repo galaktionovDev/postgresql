@@ -1,0 +1,64 @@
+{% set patroni_endpoint = hostvars[inventory_hostname].ansible_host -%}
+scope: postgresql-cluster
+namespace: /service/
+name: postgresql-{{ patroni_endpoint | replace('.', '_') }}
+etcd3:
+{% set ns = namespace(hosts=[]) -%}
+{% for db_host in groups['databases'] %}
+    {%- set local_patroni_endpoint = hostvars[db_host].ansible_host -%}
+    {% set _ = ns.hosts.append(local_patroni_endpoint ~ ':2379') -%}
+{% endfor %}
+  hosts: {{ ns.hosts | join(',') }}
+  protocol: https
+  cacert: {{ etcd_config_directory }}/ssl/ca.crt
+  cert: {{ etcd_config_directory }}/ssl/etcd-{{ patroni_endpoint | replace('.', '_') }}.crt
+  key: {{ etcd_config_directory }}/ssl/etcd-{{ patroni_endpoint | replace('.', '_') }}.key
+
+restapi:
+  listen: 0.0.0.0:{{ patroni_port }}
+  connect_address: {{ patroni_endpoint }}:{{ patroni_port }}
+  certfile: {{ postgresql_ssl_directory }}/postgres-{{ patroni_endpoint | replace('.', '_') }}.pem
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    postgresql:
+        parameters:
+            ssl: 'on'
+            ssl_cert_file: {{ postgresql_ssl_directory }}/postgres.crt
+            ssl_key_file: {{ postgresql_ssl_directory }}/postgres.key
+        pg_hba:
+          - hostssl replication replicator 127.0.0.1/32 md5
+{% for db_host in groups['databases'] %}
+    {% set local_patroni_endpoint = hostvars[db_host].ansible_host %}
+      - hostssl replication replicator {{ local_patroni_endpoint }}/32 md5
+{% endfor %}
+          - hostssl all postgres 127.0.0.1/32 md5
+          - hostssl all postgres 0.0.0.0/0 md5
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+postgresql:
+  listen: 0.0.0.0:{{ server_port }}
+  connect_address: {{ patroni_endpoint }}:{{ server_port }}
+  data_dir: {{ postgresql_data_directory }}
+  bin_dir: {{ postgresql_binary_directory }}
+  authentication:
+    superuser:
+      username: postgres
+      password: {{ admin_password }}
+    replication:
+      username: replicator
+      password: {{ replicator_password }}
+  parameters:
+    max_connections: {{ max_connections }}
+    shared_buffers: {{ shared_buffers }}
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false

@@ -1,0 +1,72 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Populate service facts
+  service_facts:
+
+- name: Create PostgreSQL systemd unit file
+  become: true
+  template:
+    src: cld_postgresql.service.j2
+    dest: "/etc/systemd/system/{{ postgresql_systemd_service }}.service"
+
+- name: Stop and disable 'postgresql' systemd service
+  become: true
+  systemd_service:
+    name: postgresql
+    state: stopped
+    enabled: false
+  when: >
+    'postgresql.service' in ansible_facts.services or
+    'postgresql' in ansible_facts.services
+
+- name: Stop and disable 'postgresql@{{ postgresql_version }}-main' systemd service
+  become: true
+  systemd_service:
+    name: "postgresql@{{ postgresql_version }}-main"
+    state: stopped
+    enabled: false
+  when: >
+    ('postgresql@.service') in ansible_facts.services or
+    ('postgresql@') in ansible_facts.services
+
+- name: Start and enable PostgreSQL systemd service
+  become: true
+  systemd_service:
+    name: "{{ postgresql_systemd_service }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Force all notified handlers to run now
+  meta: flush_handlers
+
+- name: Check if PostgreSQL server is working for Debian-based distributives
+  become: true
+  become_user: postgres
+  command: "{{ postgresql_binary_directory.apt }}/pg_isready -p {{ server_port }}"
+  register: psql_output_apt
+  retries: 3
+  delay: 3
+  until: psql_output_apt.rc == 0
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Check if PostgreSQL server is working for RHEL-based distributives
+  become: true
+  become_user: postgres
+  command: "{{ postgresql_binary_directory.yum }}/pg_isready -p {{ server_port }}"
+  register: psql_output_yum
+  retries: 3
+  delay: 3
+  until: psql_output_yum.rc == 0
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Display psql ouput
+  debug:
+    msg: "{{ psql_output_apt.stdout if psql_output_apt.stdout is defined else psql_output_yum.stdout }}"

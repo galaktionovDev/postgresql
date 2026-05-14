@@ -1,0 +1,69 @@
+---
+
+- name: Create directory for etcd OpenSSL files
+  file:
+    path: "{{ playbook_dir }}/generated/etcd/"
+    state: directory
+
+- name: Set etcd edpoints
+  set_fact:
+    etcd_endpoints: "{{ etcd_endpoints | default([]) + [ hostvars[item].ansible_host ] }}"
+  loop: "{{ groups['databases'] }}"
+
+- name: Generate etcd private keys for PostgreSQL servers
+  community.crypto.openssl_privatekey:
+    path: "{{ playbook_dir }}/generated/etcd/etcd-{{ item | replace('.', '_') }}.key"
+    size: 2048
+    type: RSA
+    mode: '644'
+    force: true
+  loop: "{{ etcd_endpoints }}"
+
+- name: Create etcd certificate requests for PostgreSQL servers
+  community.crypto.openssl_csr:
+    path: "{{ playbook_dir }}/generated/etcd/etcd-{{ item | replace('.', '_') }}.csr"
+    privatekey_path: "{{ playbook_dir }}/generated/etcd/etcd-{{ item | replace('.', '_') }}.key"
+    country_name: "{{ certificate_request_C }}"
+    state_or_province_name: "{{ certificate_request_ST }}"
+    locality_name: "{{ certificate_request_L }}"
+    organization_name: "{{ certificate_request_O }}"
+    organizational_unit_name: "{{ certificate_request_OU }}"
+    common_name: "{{ certificate_request_CN }}-{{ item | replace('.', '_') }}"
+    subject_alt_name:
+      - "IP:{{ item }}"
+      - "IP:127.0.0.1"
+      - "DNS:localhost"
+    force: true
+  loop: "{{ etcd_endpoints }}"
+
+- name: Sign etcd certificates for PostgreSQL servers
+  community.crypto.x509_certificate:
+    path: "{{ playbook_dir }}/generated/etcd/etcd-{{ item | replace('.', '_') }}.crt"
+    csr_path: "{{ playbook_dir }}/generated/etcd/etcd-{{ item | replace('.', '_') }}.csr"
+    ownca_privatekey_path: "{{ playbook_dir }}/generated/ca/ca.key"
+    ownca_path: "{{ playbook_dir }}/generated/ca/ca.crt"
+    provider: ownca
+    ownca_not_after: "+7300d"
+    ownca_digest: sha256
+    force: true
+  loop: "{{ etcd_endpoints }}"
+
+- name: Inspect etcd certificates SAN blocks
+  shell: openssl x509 -in "{{ playbook_dir }}/generated/etcd/etcd-{{ item | replace('.', '_') }}.crt" -text -noout
+  register: "etcd_certs_output"
+  loop: "{{ etcd_endpoints }}"
+
+- name: Show etcd certificates SAN blocks
+  debug:
+    msg: >-
+      {{
+        item.stdout_lines
+        | zip(item.stdout_lines[1:] + [''])
+        | selectattr('0', 'search', 'Subject Alternative Name:')
+        | map('map', 'trim')
+        | map('join', '\n    ')
+        | map('split', '\n')
+      }}
+  loop: "{{ etcd_certs_output.results }}"
+  loop_control:
+    label: "{{ item.item }}"

@@ -1,0 +1,17 @@
+---
+
+- name: Ensure Database is created
+  community.postgresql.postgresql_db:
+    name: "{{ postgresql_database_name }}"
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: "{{ postgresql_username }}"
+    login_password: "{{ postgresql_password }}"
+    maintenance_db: postgres
+    owner: "{{ postgresql_database_owner }}" 
+  
+- set_stats:
+    data:
+      db_info:
+        database_name: "{{ postgresql_database_name }}"
+        postgres_user: "{{ postgresql_database_owner }}"
