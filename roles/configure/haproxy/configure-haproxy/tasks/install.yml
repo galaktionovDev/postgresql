@@ -1,0 +1,35 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Install HAProxy package for Debian-based distributions
+  become: true
+  apt:
+    name: haproxy
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install HAProxy package for RHEL-based distributions
+  become: true
+  yum:
+    name:
+      - haproxy
+    state: present
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Install SELinux packages for RHEL-based distributions
+  become: true
+  yum:
+    name:
+      - python3-policycoreutils
+    state: present
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']

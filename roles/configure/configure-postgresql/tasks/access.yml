@@ -1,0 +1,74 @@
+---
+
+- name: Gather information about packages installed
+  package_facts:
+    manager: auto
+
+- name: Allow port {{ server_port }} on RHEL-like distributions
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ server_port }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  when: "'firewalld' in ansible_facts.packages"
+
+- name: Allow port {{ server_port }} on Debian-like distributions
+  become: true
+  community.general.ufw:
+    rule: allow
+    port: "{{ server_port }}"
+  when: "'ufw' in ansible_facts.packages"
+
+- name: Set {{ server_port }} as PostgreSQL server port
+  become: true
+  lineinfile:
+    path: "{{ postgresql_data_directory }}/postgresql.conf"
+    regexp: "^port"
+    line: "port = {{ server_port }}"
+    insertafter: EOF
+    state: present
+  notify:
+    - Restart Postgresql service
+
+- name: Allow connection to PostgreSQL server from any address
+  become: true
+  lineinfile:
+    path: "{{ postgresql_data_directory }}/postgresql.conf"
+    regexp: "^listen_addresses"
+    line: "listen_addresses = '*'"
+    insertafter: EOF
+    state: present
+  notify:
+    - Restart Postgresql service
+  when: deployment_option == 'single-instance'
+
+- name: Allow connection for user postgres to any database
+  become: true
+  community.general.postgresql_pg_hba:
+    dest: "{{ postgresql_data_directory }}/pg_hba.conf"
+    contype: host
+    databases: all
+    users: postgres
+    address: all
+    method: md5
+    state: present
+  notify:
+    - Reload Postgresql service
+  when: deployment_option == 'single-instance'
+
+- name: Ensure connection for any user isn't allowed
+  become: true
+  community.general.postgresql_pg_hba:
+    dest: "{{ postgresql_data_directory }}/pg_hba.conf"
+    contype: host
+    databases: all
+    users: all
+    address: "{{ item }}"
+    method: trust
+    state: absent
+  loop:
+    - "all"
+    - "0.0.0.0/0"
+  notify:
+    - Reload Postgresql service

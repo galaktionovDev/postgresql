@@ -1,0 +1,40 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Create PostgreSQL data directory
+  become: true
+  file:
+    path: "{{ postgresql_data_directory }}"
+    owner: postgres
+    group: postgres
+    mode: '0700'
+    state: directory
+
+- name: Create temporary file with superuser password
+  become: true
+  copy:
+    content: "{{ admin_password }}"
+    dest: "{{ postgresql_admin_password_file }}"
+    mode: '0400'
+    owner: postgres
+    group: postgres
+
+- name: Initialize database for Debian-based distributives
+  command: "sudo -u postgres {{ postgresql_binary_directory.apt }}/initdb -D {{ postgresql_data_directory }} --pwfile {{ postgresql_admin_password_file }}"
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Initialize database for RHEL-based distributives
+  command: "sudo -u postgres {{ postgresql_binary_directory.yum }}/initdb -D {{ postgresql_data_directory }} --pwfile {{ postgresql_admin_password_file }}"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+    
+- name: Delete temporary file with superuser password
+  become: true
+  file:
+    path: "{{ postgresql_admin_password_file }}"
+    state: absent

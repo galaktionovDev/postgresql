@@ -1,0 +1,75 @@
+---
+
+- name: Fail if one of the connection variables is not set
+  fail:
+    msg: "Variable '{{ item }}' is not set."
+  loop:
+    - postgresql_server_address
+    - postgresql_password
+  when: item is undefined and connection_type == 'remote'
+
+- name: Fail if migration script is not set
+  fail:
+    msg: "Variable postgresql_migration_script is not set."
+  when: postgresql_migration_script is undefined
+
+- name: Ensure migration script is created in {{ migration_script_location }}
+  become: true
+  template:
+    src: migration.sql.j2
+    dest: "{{ migration_script_location }}"
+    mode: '0644'
+
+- name: Perform migration locally
+  become: true
+  become_user: postgres
+  block:
+    - name: Ensure migration database is created
+      community.postgresql.postgresql_db:
+        name: "{{ postgresql_migration_database }}"
+        owner: "{{ postgresql_database_owner }}"
+    
+    - name: Change owner of public schema
+      community.postgresql.postgresql_query:
+        db: "{{ postgresql_migration_database }}"
+        query: "ALTER SCHEMA public OWNER TO {{ postgresql_database_owner }};"
+
+    - name: Perform migration locally
+      community.postgresql.postgresql_script:
+        login_db: "{{ postgresql_migration_database }}"
+        path: "{{ migration_script_location }}"
+        login_user: "{{ postgresql_database_owner }}"
+
+  when: connection_type == 'local'
+
+- name: Perform migration remotely
+  block:
+    - name: Ensure migration database is created
+      community.postgresql.postgresql_db:
+        name: "{{ postgresql_migration_database }}"
+        owner: "{{ postgresql_database_owner }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: "{{ postgresql_username }}"
+        login_password: "{{ postgresql_password }}"
+        maintenance_db: postgres
+    
+    - name: Change owner of public schema
+      community.postgresql.postgresql_query:
+        db: "{{ postgresql_migration_database }}"
+        query: "ALTER SCHEMA public OWNER TO {{ postgresql_database_owner }};"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: "{{ postgresql_username }}"
+        login_password: "{{ postgresql_password }}"
+
+    - name: Perform migration remotely
+      community.postgresql.postgresql_script:
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_db: "{{ postgresql_migration_database }}"
+        login_user: "{{ postgresql_database_owner }}"
+        login_password: "{{ postgresql_password }}"
+        path: "{{ migration_script_location }}"
+
+  when: connection_type == 'remote'

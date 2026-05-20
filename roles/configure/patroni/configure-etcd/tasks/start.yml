@@ -1,0 +1,51 @@
+---
+
+- name: Force all notified handlers to run now
+  meta: flush_handlers
+
+- name: Start and enable etcd systemd service
+  become: true
+  systemd_service:
+    name: etcd
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Inspect etcd endpoints health
+  become: true
+  become_user: etcd
+  command: >
+    /usr/local/bin/etcdctl
+    --endpoints=https://127.0.0.1:2379
+    --cacert={{ etcd_config_directory }}/ssl/ca.crt
+    --cert={{ etcd_config_directory }}/ssl/etcd-{{ etcd_endpoint }}.crt
+    --key={{ etcd_config_directory }}/ssl/etcd-{{ etcd_endpoint }}.key
+    endpoint health
+  register: endpoint_health
+
+- name: Inspect etcd member list
+  become: true
+  become_user: etcd
+  command: >
+    /usr/local/bin/etcdctl
+    --endpoints=https://127.0.0.1:2379
+    --cacert={{ etcd_config_directory }}/ssl/ca.crt
+    --cert={{ etcd_config_directory }}/ssl/etcd-{{ etcd_endpoint }}.crt
+    --key={{ etcd_config_directory }}/ssl/etcd-{{ etcd_endpoint }}.key
+    member list
+  register: member_list
+
+- name: Show enpoints health
+  debug:
+    msg: "{{ endpoint_health.stdout_lines[0] }}"
+
+- name: Show member list
+  debug:
+    msg: "{{ member_list.stdout_lines }}"
+
+- name: Change etcd cluster state
+  become: true
+  lineinfile:
+    path: "{{ etcd_config_directory }}/etcd.env"
+    search_string: ETCD_INITIAL_CLUSTER_STATE="new"
+    line: ETCD_INITIAL_CLUSTER_STATE="existing"

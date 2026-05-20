@@ -1,0 +1,13 @@
+---
+
+- name: Restart Postgresql service
+  become: true
+  systemd_service:
+    name: "{{ postgresql_systemd_service }}"
+    state: restarted
+
+- name: Reload Postgresql service
+  become: true
+  systemd_service:
+    name: "{{ postgresql_systemd_service }}"
+    state: reloaded

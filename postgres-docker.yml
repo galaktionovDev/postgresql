@@ -1,13 +1,121 @@
 ---
 
-- hosts: all
+- name: Collect facts from databases
+  hosts: databases
+  gather_facts: true
+
+
+
+- name: Generate certificates
+  hosts: localhost
   gather_facts: false
-  tasks:
-    - include_role:
-        name: docker-setup
-    - include_role:
-        name: postgres-docker
   vars:
-    distrib_store: "{{ _REPOS.distrib_store }}"
-    docker_registry: "{{ _REPOS.docker_registry }}"
-    docker_image_path: "{{ _REPOS.docker_image_path }}"
+    generate_ca: true
+
+  roles:
+    - role: configure/patroni/generate-certificates
+      tags:
+        - generate-certificates
+      when: deployment_option == 'high-availability'
+
+- name: Reconfigure repositories
+  hosts: databases,load_balancers
+  any_errors_fatal: true
+
+  tasks:
+    - name: Include tasks for repositories reconfigure # temporary task for switching from default products-apt to os-specific repository
+      become: true
+      import_tasks: reconfigure_repositories.yml
+      ignore_errors: true
+      tags:
+        - reconfigure-repositories
+        - always
+
+
+
+- name: Install and configure PostgreSQL servers
+  hosts: databases
+  any_errors_fatal: true
+  vars:
+    postgresql_version: "{{ postgres_version | default(18) }}"
+
+  pre_tasks:
+    - name: Fail if some of the mandatory extra variables are not set
+      fail:
+        msg: "Extra variable {{ item }} is not set."
+      loop:
+        - deployment_option
+        - admin_password
+      tags:
+        - always
+      when: item is undefined
+
+    - name: Fail if some of the high availability extra variables are not set
+      fail:
+        msg: "Extra variable {{ item }} is not set."
+      loop:
+        - replicator_password
+      tags:
+        - always
+      when:
+        - item is undefined
+        - deployment_option == 'high-availability'
+
+  roles:
+    - role: configure/configure-postgresql
+      tags:
+        - configure-postgresql
+      when: deployment_option == 'single-instance'
+
+    - role: configure/patroni/configure-patroni
+      tags:
+        - configure-patroni-cluster
+      when: deployment_option == 'high-availability'
+
+
+
+- name: Install and configure Load balancers
+  hosts: load_balancers
+  any_errors_fatal: true
+  vars:
+    keepalived_address: "{{ hostvars[groups['postgresql_entrypoint'][0]].ansible_host }}"
+
+  roles:
+    - role: configure/haproxy/configure-haproxy
+      tags:
+        - configure-haproxy-cluster
+      when: deployment_option == 'high-availability'
+    
+    - role: configure/haproxy/configure-keepalived
+      tags:
+        - configure-haproxy-cluster
+        - configure-keepalived-service
+      when: deployment_option == 'high-availability'
+
+
+
+- import_playbook: perform-migration.yml
+
+
+
+- name: Post tasks
+  hosts: localhost
+  connection: local
+  vars:
+    postgresql_port: "{{ server_port | default(5432) }}"
+    dns_zone: ''
+
+  tasks:
+    - name: Get connection url
+      set_stats:
+        data:
+          connection_url: >
+            {{ 'jdbc:postgresql://'
+            + (hostvars[groups['postgresql_entrypoint'][0]]['ansible_host']
+            if
+            dns_zone == ''
+            else
+            groups['postgresql_entrypoint'][0]
+            + '.' + dns_zone[:-1])
+            + ':' + postgresql_port
+            + '/postgres' }}

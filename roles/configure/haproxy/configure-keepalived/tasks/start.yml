@@ -1,0 +1,32 @@
+---
+
+- name: Restart Keepalived
+  become: true
+  systemd_service:
+    name: keepalived
+    state: restarted
+
+- name: Wait for VIP to be reachable
+  wait_for:
+    host: "{{ keepalived_address }}"
+    port: "{{ server_port }}"
+    state: started
+    timeout: 15
+  delegate_to: localhost
+
+- name: Verify VIP is assigned on MASTER
+  shell: ip addr show {{ ansible_default_ipv4.interface }}
+  register: ip_check
+  tags:
+    - keepalived_info
+#  when: ansible_play_hosts_all.index(inventory_hostname) == 0
+
+- name: Show IP status
+  debug:
+    var: ip_check.stdout_lines
+  tags:
+    - keepalived_info
+#    msg: "VIP 192.168.60.110 is active"
+#  when: 
+#    - ansible_play_hosts_all.index(inventory_hostname) == 0
+#    - "'192.168.60.110' in ip_check.stdout"

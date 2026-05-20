@@ -1,0 +1,12 @@
+---
+
+generate_ca: true
+
+# etcd certificates data
+
+certificate_request_C: RU
+certificate_request_ST: Moscow
+certificate_request_L: Moscow
+certificate_request_O: Org
+certificate_request_OU: OU
+certificate_request_CN: etcd

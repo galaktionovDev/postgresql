@@ -1,8 +1,32 @@
 ---
 
-- hosts: all
+- name: Create PostgreSQL user
+  hosts: localhost
   gather_facts: false
+  pre_tasks:
+    - name: Fail if some of the mandatory extra variables are not set
+      fail:
+        msg: "Extra variable {{ item }} is not set."
+      loop:
+        - server_port
+        - username
+        - database_name
+        - admin_password
+        - p_role_name
+        - postgres_version
+      when: vars[item] is undefined
+
   tasks:
-    - include_role:
-        name: grant-postgres-role
-        
+    - name: Include role for PostgreSQL user creation
+      vars:
+        postgresql_server_address: "{{ hostvars[groups['postgresql_entrypoint'][0]]['ansible_host'] }}"
+        postgresql_server_port: "{{ server_port }}"
+        postgresql_username: "{{ username }}"
+        postgresql_admin_password: "{{ admin_password }}"
+        postgresql_database: "{{ database_name }}"
+        postgresql_role: "{{ p_role_name }}"
+        postgresql_version: "{{ postgres_version }}"
+      include_role:
+        name: post-installation/grant-postgres-role
+        apply:
+          delegate_to: "{{ groups['databases'][0] }}"

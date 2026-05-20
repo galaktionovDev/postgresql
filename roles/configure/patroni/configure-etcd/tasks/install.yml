@@ -1,0 +1,33 @@
+---
+
+- name: Download etcd binaries
+  ansible.builtin.get_url:
+    url: "{{ nexus_url }}/repository/products-raw/postgresql/etcd/{{ item }}"
+    dest: "/tmp/{{ item }}"
+    mode: "0644"
+  loop: "{{ etcd_binaries }}"
+
+- name: Copy etcd binary files into /usr/local/bin
+  become: true
+  copy:
+    src: "/tmp/{{ item }}"
+    dest: /usr/local/bin
+    remote_src: true
+    mode: '0755'
+  loop: "{{ etcd_binaries }}"
+
+- name: Inspect etcd version
+  command: /usr/local/bin/etcd --version
+  register: etcd_version
+
+- name: Inspect etcdctl version
+  command: /usr/local/bin/etcdctl version
+  register: etcdctl_version
+
+- name: Show etcd version
+  debug:
+    msg: "{{ etcd_version.stdout_lines }}"
+
+- name: Show etcdctl version
+  debug:
+    msg: "{{ etcdctl_version.stdout_lines }}"

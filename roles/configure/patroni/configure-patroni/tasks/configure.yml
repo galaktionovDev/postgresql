@@ -1,0 +1,79 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Create Patroni configuration directory
+  become: true
+  file:
+    name: "{{ patroni_config_directory }}"
+    state: directory
+
+- name: Set PostgreSQL binary directory fact for Debian-based distributives
+  set_fact:
+    postgresql_binary_directory: /usr/lib/postgresql/{{ postgresql_version }}/bin
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Set PostgreSQL binary directory fact for RHEL-based distributives
+  set_fact:
+    postgresql_binary_directory: /usr/pgsql-{{ postgresql_version }}/bin
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Create Patroni configuration file for PostgreSQl servers
+  become: true
+  template:
+    src: config.yml.j2
+    dest: "{{ patroni_config_directory }}/config.yml"
+
+- name: Gather information about packages installed
+  package_facts:
+    manager: auto
+
+- name: Allow Patroni and PostgreSQL ports on RHEL-like distributions
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - "{{ patroni_port }}"
+    - "{{ server_port }}"
+  when: "'firewalld' in ansible_facts.packages"
+
+- name: Allow Patroni and PostgreSQL ports on Debian-like distributions
+  become: true
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+  loop:
+    - "{{ patroni_port }}"
+    - "{{ server_port }}"
+  when: "'ufw' in ansible_facts.packages"
+
+- name: Update ExecStart in patroni.service
+  become: true
+  lineinfile:
+    path: /usr/lib/systemd/system/patroni.service
+    regexp: '^ExecStart=/usr/bin/patroni'
+    line: 'ExecStart=/usr/bin/patroni /etc/patroni/config.yml'
+    state: present
+
+- name: Allow Patroni to bind to privileged ports
+  become: true
+  community.general.ini_file:
+    path: /usr/lib/systemd/system/patroni.service
+    section: Service
+    option: "{{ item.key }}"
+    value: "{{ item.value }}"
+    no_extra_spaces: yes
+  loop:
+    - key: 'AmbientCapabilities'
+      value: 'CAP_NET_BIND_SERVICE'
+    - key: 'CapabilityBoundingSet'
+      value: 'CAP_NET_BIND_SERVICE'
+  register: systemd_config

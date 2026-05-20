@@ -1,0 +1,100 @@
+---
+
+- name: Populate service facts
+  service_facts:
+
+- name: Stop and disable 'postgresql' systemd service
+  become: true
+  systemd_service:
+    name: postgresql
+    state: stopped
+    enabled: false
+  when: >
+    'postgresql.service' in ansible_facts.services or
+    'postgresql' in ansible_facts.services
+
+- name: Stop and disable 'postgresql@{{ postgresql_version }}-main' systemd service
+  become: true
+  systemd_service:
+    name: "postgresql@{{ postgresql_version }}-main"
+    state: stopped
+    enabled: false
+  when: >
+    ('postgresql@.service') in ansible_facts.services or
+    ('postgresql@') in ansible_facts.services
+
+- name: Create directories for PostgreSQL
+  become: true
+  file:
+    name: "{{ postgresql_ssl_directory }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0750'
+  loop:
+    - "{{ postgresql_data_directory }}"
+    - "{{ postgresql_ssl_directory }}"
+
+- name: Copy PostgreSQL certificates to ssl directory
+  become: true
+  copy:
+    src: "/tmp/{{ item }}"
+    dest: "{{ postgresql_ssl_directory }}"
+    remote_src: true
+  loop:
+    - "ca.crt"
+    - "postgres-{{ postgresql_endpoint }}.crt"
+    - "postgres-{{ postgresql_endpoint }}.key"
+    - "postgres-{{ postgresql_endpoint }}.pem"
+
+- name: Create symbolic links to certificates and keys
+  become: true
+  file:
+    src: "{{ postgresql_ssl_directory }}/postgres-{{ postgresql_endpoint }}.{{ item }}"
+    dest: "{{ postgresql_ssl_directory }}/postgres.{{ item }}"
+    state: link
+    owner: postgres
+    group: postgres
+  loop:
+    - crt
+    - key
+
+- name: Change ownership of postgres ssl directory
+  become: true
+  file:
+    path: "{{ postgresql_ssl_directory }}"
+    owner: postgres
+    group: postgres
+    state: directory
+    recurse: true
+
+- name: Change permissions of keys
+  become: true
+  file:
+    path: "{{ postgresql_ssl_directory }}/{{ item }}"
+    mode: '0600'
+  loop:
+    - "postgres-{{ postgresql_endpoint }}.key"
+    - "postgres-{{ postgresql_endpoint }}.pem"
+
+- name: Change permissions of certififcates
+  become: true
+  file:
+    path: "{{ postgresql_ssl_directory }}/{{ item }}"
+    mode: '0644'
+  loop:
+    - "ca.crt"
+    - "postgres-{{ postgresql_endpoint }}.crt"
+
+- name: Grant PostgreSQL user acces to etcd certificates
+  become: true
+  acl:
+    name: "{{ etcd_config_directory }}/ssl/{{ item }}"
+    entity: postgres
+    etype: user
+    permissions: r
+    state: present
+  loop:
+    - "ca.crt"
+    - "etcd-{{ postgresql_endpoint }}.crt"
+    - "etcd-{{ postgresql_endpoint }}.key"
