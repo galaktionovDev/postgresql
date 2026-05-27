@@ -26,6 +26,7 @@
   loop:
     - "{{ server_port }}"
     - "{{ haproxy_port }}"
+    - "{{ patroni_port }}"
   when: "'firewalld' in ansible_facts.packages"
 
 - name: Allow HAProxy and PostgreSQL ports on Debian-like distributions
@@ -36,6 +37,7 @@
   loop:
     - "{{ server_port }}"
     - "{{ haproxy_port }}"
+    - "{{ patroni_port }}"
   when: "'ufw' in ansible_facts.packages"
 
 - name: Configure SELinux to allow HAProxy and Patroni connections
