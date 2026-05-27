@@ -7,6 +7,11 @@
       - ansible_distribution_major_version
       - ansible_distribution_version
 
+- name: Determine cld repository EL version (RED OS 8 maps to el9)
+  set_fact:
+    cld_repo_el: "{{ 'el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'el' ~ ansible_distribution_major_version }}"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
 - name: Install Patroni package for Debian-based distributions
   become: true
   apt:
@@ -22,7 +27,7 @@
       - patroni
       - patroni-etcd
     state: present
-    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    enablerepo: "cld-repository-{{ cld_repo_el }}"
     disablerepo: "*"
   when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
 
@@ -40,7 +45,7 @@
     name:
       - acl
     state: present
-    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    enablerepo: "cld-repository-{{ cld_repo_el }}"
     disablerepo: "*"
   when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
 
