@@ -59,8 +59,8 @@
   become: true
   lineinfile:
     path: /usr/lib/systemd/system/patroni.service
-    regexp: '^ExecStart=/usr/bin/patroni'
-    line: 'ExecStart=/usr/bin/patroni /etc/patroni/config.yml'
+    regexp: '^ExecStart=.*'
+    line: "{% if ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8' %}ExecStart=/opt/patroni-venv/bin/patroni /etc/patroni/config.yml{% else %}ExecStart=/usr/bin/patroni /etc/patroni/config.yml{% endif %}"
     state: present
 
 - name: Allow Patroni to bind to privileged ports
