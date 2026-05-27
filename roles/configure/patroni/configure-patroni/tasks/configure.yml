@@ -55,13 +55,41 @@
     - "{{ server_port }}"
   when: "'ufw' in ansible_facts.packages"
 
-- name: Update ExecStart in patroni.service
+- name: Create patroni.service systemd unit for RED OS 8 (venv install)
+  become: true
+  copy:
+    dest: /usr/lib/systemd/system/patroni.service
+    content: |
+      [Unit]
+      Description=Runners to orchestrate a high-availability PostgreSQL
+      After=syslog.target network.target
+
+      [Service]
+      Type=simple
+      User=postgres
+      Group=postgres
+      ExecStart=/opt/patroni-venv/bin/patroni /etc/patroni/config.yml
+      KillMode=process
+      TimeoutSec=30
+      Restart=no
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: '0644'
+  when: 
+    - ansible_distribution.split(' ') | first | lower == 'red'
+    - ansible_distribution_major_version == '8'
+
+- name: Update ExecStart in patroni.service for standard RPM/APT installs
   become: true
   lineinfile:
     path: /usr/lib/systemd/system/patroni.service
     regexp: '^ExecStart=.*'
-    line: "{% if ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8' %}ExecStart=/opt/patroni-venv/bin/patroni /etc/patroni/config.yml{% else %}ExecStart=/usr/bin/patroni /etc/patroni/config.yml{% endif %}"
+    line: 'ExecStart=/usr/bin/patroni /etc/patroni/config.yml'
     state: present
+  when: not (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8')
 
 - name: Allow Patroni to bind to privileged ports
   become: true
