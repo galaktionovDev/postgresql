@@ -22,9 +22,8 @@
 - name: Install Keepalived package for RHEL-based distributions
   become: true
   yum:
-    name:
-      - keepalived
+    name: keepalived
     state: present
-    enablerepo: "cld-repository-{{ cld_repo_el }}"
+    enablerepo: "{{ 'cld-repository-el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'cld-repository-el' + ansible_distribution_major_version }}"
     disablerepo: "*"
   when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']

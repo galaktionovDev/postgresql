@@ -1,5 +1,4 @@
 ---
-
 - name: Collect ansible_distribution facts
   setup:
     filter:
