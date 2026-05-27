@@ -27,3 +27,27 @@
   template:
     src: keepalived.conf.j2
     dest: /etc/keepalived/keepalived.conf
+
+- name: Gather information about packages installed
+  package_facts:
+    manager: auto
+
+- name: Allow VRRP protocol on RHEL-like distributions
+  become: true
+  ansible.posix.firewalld:
+    protocol: vrrp
+    state: enabled
+    permanent: true
+    immediate: true
+  when:
+    - "'firewalld' in ansible_facts.packages"
+    - ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Allow VRRP protocol on Debian-like distributions
+  become: true
+  community.general.ufw:
+    rule: allow
+    proto: vrrp
+  when:
+    - "'ufw' in ansible_facts.packages"
+    - ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']    
