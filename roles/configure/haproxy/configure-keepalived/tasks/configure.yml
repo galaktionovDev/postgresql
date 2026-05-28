@@ -35,7 +35,7 @@
 - name: Allow VRRP protocol on RHEL-like distributions
   become: true
   ansible.posix.firewalld:
-    protocol: vrrp
+    rich_rule: rule protocol value="112" accept
     state: enabled
     permanent: true
     immediate: true
@@ -43,11 +43,12 @@
     - "'firewalld' in ansible_facts.packages"
     - ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
 
-- name: Allow VRRP protocol on Debian-like distributions
+- name: Allow VRRP multicast on Debian-like distributions
   become: true
   community.general.ufw:
     rule: allow
-    proto: vrrp
+    direction: in
+    to_ip: "224.0.0.18"
   when:
     - "'ufw' in ansible_facts.packages"
-    - ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']    
+    - ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
