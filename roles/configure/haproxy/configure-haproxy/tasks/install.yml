@@ -12,6 +12,11 @@
     cld_repo_el: "{{ 'el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'el' ~ ansible_distribution_major_version }}"
   when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
 
+- name: Determine SELinux management package name (RED OS 8 differs from EL)
+  set_fact:
+    selinux_mgmt_package: "{{ 'policycoreutils-python-utils' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'python3-policycoreutils' }}"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
 - name: Install HAProxy package for Debian-based distributions
   become: true
   apt:
@@ -32,7 +37,7 @@
   become: true
   yum:
     name:
-      - python3-policycoreutils
+      - "{{ selinux_mgmt_package }}"
     state: present
     enablerepo: "cld-repository-{{ cld_repo_el }}"
     disablerepo: "*"
