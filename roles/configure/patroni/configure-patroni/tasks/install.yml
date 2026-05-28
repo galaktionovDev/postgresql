@@ -34,7 +34,7 @@
       yum:
         name:
           - python3.11
-          - python3.11-pip
+          - python3-setuptools
         state: present
         enablerepo: "cld-repository-el9"
         disablerepo: "*"
