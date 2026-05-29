@@ -46,7 +46,7 @@
     - ansible_selinux is defined
     - ansible_selinux.status != 'disabled'
   block:
-    - name: Allow HAProxy and Patroni ports in SELinux (Standard)
+    - name: Allow HAProxy and Patroni ports in SELinux
       community.general.seport:
         ports: "{{ item }}"
         proto: tcp
@@ -56,45 +56,9 @@
         - "{{ server_port }}"
         - "{{ patroni_port }}"
         - "{{ haproxy_port }}"
-      when: not (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8')
 
-    - name: Allow HAProxy to connect to backend servers (Standard)
+    - name: Allow HAProxy to connect to backend servers
       ansible.builtin.seboolean:
         name: haproxy_connect_any
         state: yes
         persistent: yes
-      when: not (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8')
-
-    - name: Allow HAProxy and Patroni ports in SELinux via CLI (RED OS 8 Fallback)
-      ansible.builtin.shell: |
-        if command -v semanage >/dev/null 2>&1; then
-          if ! semanage port -l | grep -E -q "\b{{ item }}\b"; then
-            semanage port -a -t postgresql_port_t -p tcp {{ item }} || semanage port -m -t postgresql_port_t -p tcp {{ item }}
-            echo "changed"
-          fi
-        else
-          echo "WARNING: semanage is missing. Skipping." >&2
-        fi
-      loop:
-        - "{{ server_port }}"
-        - "{{ patroni_port }}"
-        - "{{ haproxy_port }}"
-      register: seport_redos
-      changed_when: "'changed' in seport_redos.stdout"
-      when:
-        - ansible_distribution.split(' ') | first | lower == 'red'
-        - ansible_distribution_major_version == '8'
-
-    - name: Allow HAProxy to connect to backend servers via CLI (RED OS 8 Fallback)
-      ansible.builtin.shell: |
-        if command -v setsebool >/dev/null 2>&1; then
-          if ! getsebool haproxy_connect_any | grep -q "on"; then
-            setsebool -P haproxy_connect_any 1
-            echo "changed"
-          fi
-        fi
-      register: sebool_redos
-      changed_when: "'changed' in sebool_redos.stdout"
-      when:
-        - ansible_distribution.split(' ') | first | lower == 'red'
-        - ansible_distribution_major_version == '8'
