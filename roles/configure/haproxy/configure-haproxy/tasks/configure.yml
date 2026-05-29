@@ -40,6 +40,15 @@
     - "{{ patroni_port }}"
   when: "'ufw' in ansible_facts.packages"
 
+- name: Allow HAProxy to bind to nonlocal IP (VIP)
+  become: true
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true  
+
 - name: Configure SELinux to allow HAProxy and Patroni connections
   become: true
   when: 
