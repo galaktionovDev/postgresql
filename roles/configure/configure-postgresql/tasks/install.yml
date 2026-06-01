@@ -41,3 +41,19 @@
     enablerepo: "{{ 'cld-repository-el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'cld-repository-el' + ansible_distribution_major_version }}"
     disablerepo: "*"
   when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Check if PGDG PostgreSQL binary exists (RHEL-based)
+  stat:
+    path: "/usr/pgsql-{{ postgresql_version }}/bin/postgres"
+  register: pgdg_bin_stat
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Set dynamic PostgreSQL binary path for RHEL-based distributions
+  set_fact:
+    postgresql_bin_path: "{{ '/usr/pgsql-' ~ postgresql_version ~ '/bin' if pgdg_bin_stat.stat.exists else '/usr/bin' }}"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Set dynamic PostgreSQL binary path for Debian-based distributions
+  set_fact:
+    postgresql_bin_path: "/usr/lib/postgresql/{{ postgresql_version }}/bin"
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
