@@ -7,11 +7,7 @@ Wants=network-online.target
 [Service]
 Type=notify
 User=postgres
-{% if ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian'] -%}
-ExecStart={{ postgresql_binary_directory.apt }}/postgres -D {{ postgresql_data_directory }} -c config_file={{ postgresql_data_directory }}/postgresql.conf
-{% elif ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos'] -%}
-ExecStart={{ postgresql_binary_directory.yum }}/postgres -D {{ postgresql_data_directory }} -c config_file={{ postgresql_data_directory }}/postgresql.conf
-{% endif -%}
+ExecStart={{ postgresql_bin_path }}/postgres -D {{ postgresql_data_directory }} -c config_file={{ postgresql_data_directory }}/postgresql.conf
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 KillSignal=SIGINT

@@ -26,6 +26,7 @@
   loop:
     - "{{ server_port }}"
     - "{{ haproxy_port }}"
+    - "{{ patroni_port }}"
   when: "'firewalld' in ansible_facts.packages"
 
 - name: Allow HAProxy and PostgreSQL ports on Debian-like distributions
@@ -36,10 +37,23 @@
   loop:
     - "{{ server_port }}"
     - "{{ haproxy_port }}"
+    - "{{ patroni_port }}"
   when: "'ufw' in ansible_facts.packages"
+
+- name: Allow HAProxy to bind to nonlocal IP (VIP)
+  become: true
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true  
 
 - name: Configure SELinux to allow HAProxy and Patroni connections
   become: true
+  when: 
+    - ansible_selinux is defined
+    - ansible_selinux.status != 'disabled'
   block:
     - name: Allow HAProxy and Patroni ports in SELinux
       community.general.seport:
@@ -57,6 +71,3 @@
         name: haproxy_connect_any
         state: yes
         persistent: yes
-  when: 
-    - ansible_selinux is defined
-    - ansible_selinux.status != 'disabled'

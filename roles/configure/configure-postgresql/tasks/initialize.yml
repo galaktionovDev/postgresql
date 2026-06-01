@@ -25,13 +25,8 @@
     owner: postgres
     group: postgres
 
-- name: Initialize database for Debian-based distributives
-  command: "sudo -u postgres {{ postgresql_binary_directory.apt }}/initdb -D {{ postgresql_data_directory }} --pwfile {{ postgresql_admin_password_file }}"
-  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
-
-- name: Initialize database for RHEL-based distributives
-  command: "sudo -u postgres {{ postgresql_binary_directory.yum }}/initdb -D {{ postgresql_data_directory }} --pwfile {{ postgresql_admin_password_file }}"
-  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+- name: Initialize database
+  command: "sudo -u postgres {{ postgresql_bin_path }}/initdb -D {{ postgresql_data_directory }} --pwfile {{ postgresql_admin_password_file }}"
     
 - name: Delete temporary file with superuser password
   become: true
