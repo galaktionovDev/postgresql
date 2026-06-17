@@ -1,0 +1,5 @@
+connection_type: local
+postgresql_server_port: 5432
+postgresql_migration_database: postgres
+postgresql_username: postgres
+migration_script_location: /tmp/migration.sql

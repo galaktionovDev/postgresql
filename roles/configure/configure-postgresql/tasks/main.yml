@@ -1,0 +1,40 @@
+---
+
+- name: Include tasks for PostgreSQL installation
+  import_tasks: install.yml
+  tags:
+    - install
+
+- name: Check if database was already initialized
+  become: true
+  find:
+    paths: "{{ postgresql_data_directory }}"
+    file_type: any
+  register: "posgresql_data_directory_find_results"
+  tags:
+    - initialize
+
+- name: Display message if database is already initialized
+  debug:
+    msg: "PostgreSQL is already initialized, skipping..."
+  when: posgresql_data_directory_find_results.files | length > 0
+  tags:
+    - initialize
+
+- name: Include tasks for PostgreSQL initialization
+  include_tasks:
+    file: initialize.yml
+    apply:
+      tags:
+        - initialize
+  when: posgresql_data_directory_find_results.files | length == 0
+
+- name: Include tasks for PostgreSQL access configuration
+  import_tasks: access.yml
+  tags:
+    - access
+
+- name: Include tasks for PostgreSQL server start
+  import_tasks: start.yml
+  tags:
+    - start

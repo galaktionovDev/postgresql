@@ -1,0 +1,107 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Install Patroni package for Debian-based distributions
+  become: true
+  apt:
+    name:
+      - patroni
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install Patroni packages for RHEL-based distributions (Excluding RED OS 8)
+  become: true
+  yum:
+    name:
+      - patroni
+      - patroni-etcd
+    state: present
+    enablerepo: "cld-repository-el{{ ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: 
+    - ansible_distribution.split(' ') | first | lower in ['almalinux', 'centos'] or (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version != '8')
+
+- name: Install Patroni via venv for RED OS 8
+  block:
+    - name: Ensure python3.11 and pip are installed
+      become: true
+      yum:
+        name:
+          - python3.11
+          - python3-setuptools
+        state: present
+        enablerepo: "cld-repository-el9"
+        disablerepo: "*"
+
+    - name: Create directory for Patroni offline wheels
+      become: true
+      file:
+        path: /opt/patroni-wheels
+        state: directory
+        mode: '0755'
+
+    - name: Download Patroni wheelhouse from Nexus
+      become: true
+      get_url:
+        url: "{{ nexus_url }}/repository/products-raw/postgresql/patroni/patroni-wheels.tar.gz"
+        dest: /tmp/patroni-wheels.tar.gz
+        validate_certs: false
+
+    - name: Extract Patroni wheels
+      become: true
+      unarchive:
+        src: /tmp/patroni-wheels.tar.gz
+        dest: /opt/patroni-wheels/
+        remote_src: yes
+
+    - name: Install Patroni in virtualenv
+      become: true
+      pip:
+        name:
+          - 'patroni[etcd]'
+          - psycopg2-binary
+        virtualenv: /opt/patroni-venv
+        virtualenv_command: /usr/bin/python3.11 -m venv
+        extra_args: "--no-index --find-links=/opt/patroni-wheels"
+
+    - name: Cleanup temporary wheel archive
+      become: true
+      file:
+        path: /tmp/patroni-wheels.tar.gz
+        state: absent
+  when:
+    - ansible_distribution.split(' ') | first | lower == 'red'
+    - ansible_distribution_major_version == '8'
+
+- name: Install Ansible packages for Debian-based distributions
+  become: true
+  apt:
+    name:
+      - acl
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install Ansible packages for RHEL-based distributions
+  become: true
+  yum:
+    name:
+      - acl
+    state: present
+    enablerepo: "{{ 'cld-repository-el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'cld-repository-el' + ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Install Patroni packages for AstraLinux 1.7
+  become: true
+  apt:
+    name:
+      - python3-etcd
+      - python3-consul
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['astra'] and ansible_distribution_version == '1.7_x86-64'

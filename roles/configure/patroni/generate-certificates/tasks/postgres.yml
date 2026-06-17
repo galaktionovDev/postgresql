@@ -1,0 +1,85 @@
+---
+
+- name: Create directory for PostgreSQL OpenSSl files
+  file:
+    path: "{{ playbook_dir }}/generated/postgres/"
+    state: directory
+
+- name: Set PostgreSQL edpoints fact
+  set_fact:
+    postgresql_endpoints: "{{ postgresql_endpoints | default([]) + [ hostvars[item].ansible_host ] }}"
+  loop: "{{ groups['databases'] }}"
+
+- name: Generate PostgreSQL private keys for PostgreSQL servers
+  community.crypto.openssl_privatekey:
+    path: "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.key"
+    size: 2048
+    type: RSA
+    mode: '644'
+    force: true
+  loop: "{{ postgresql_endpoints }}"
+
+- name: Create PostgreSQL certificate requests for PostgreSQL servers
+  community.crypto.openssl_csr:
+    path: "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.csr"
+    privatekey_path: "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.key"
+    country_name: "{{ certificate_request_C }}"
+    state_or_province_name: "{{ certificate_request_ST }}"
+    locality_name: "{{ certificate_request_L }}"
+    organization_name: "{{ certificate_request_O }}"
+    organizational_unit_name: "{{ certificate_request_OU }}"
+    common_name: "{{ certificate_request_CN }}{{ item | replace('.', '_') }}"
+    subject_alt_name:
+      - "IP:{{ item }}"
+      - "IP:127.0.0.1"
+      - "DNS:localhost"
+    force: true
+  loop: "{{ postgresql_endpoints }}"
+
+- name: Sign PostgreSQL certificates for PostgreSQL servers
+  community.crypto.x509_certificate:
+    path: "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.crt"
+    csr_path: "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.csr"
+    ownca_privatekey_path: "{{ playbook_dir }}/generated/ca/ca.key"
+    ownca_path: "{{ playbook_dir }}/generated/ca/ca.crt"
+    provider: ownca
+    ownca_not_after: "+7300d"
+    ownca_digest: sha256
+    force: true
+  loop: "{{ postgresql_endpoints }}"
+
+- name: Inspect PostgreSQL certificates SAN blocks
+  shell: openssl x509 -in "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.crt" -text -noout
+  register: "postgresql_certs_output"
+  loop: "{{ postgresql_endpoints }}"
+
+- name: Show certificates SAN blocks
+  debug:
+    msg: >-
+      {{
+        item.stdout_lines
+        | zip(item.stdout_lines[1:] + [''])
+        | selectattr('0', 'search', 'Subject Alternative Name:')
+        | map('map', 'trim')
+        | map('join', '\n    ')
+        | map('split', '\n')
+      }}
+  loop: "{{ postgresql_certs_output.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Create .pem file
+  shell: sh -c 'cat "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.crt" "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.key" > "{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.pem"'
+  loop: "{{ postgresql_endpoints }}"
+
+- name: Inspect .pem file validity
+  command: "openssl verify -CAfile '{{ playbook_dir }}/generated/ca/ca.crt' '{{ playbook_dir }}/generated/postgres/postgres-{{ item | replace('.', '_') }}.pem'"
+  loop: "{{ postgresql_endpoints }}"
+  register: pem_output
+
+- name: Show .pem file validity
+  debug:
+    msg: "{{ item.stdout_lines }}"
+  loop: "{{ pem_output.results }}"
+  loop_control:
+    label: "{{ item.item }}"

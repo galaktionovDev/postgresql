@@ -1,0 +1,29 @@
+---
+
+- name: Collect ansible_distribution facts
+  setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_major_version
+      - ansible_distribution_version
+
+- name: Determine cld repository EL version (RED OS 8 maps to el9)
+  set_fact:
+    cld_repo_el: "{{ 'el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'el' ~ ansible_distribution_major_version }}"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']
+
+- name: Install Keepalived package for Debian-based distributions
+  become: true
+  apt:
+    name: keepalived
+    state: present
+  when: ansible_distribution.split(' ') | first | lower in ['ubuntu', 'astra', 'debian']
+
+- name: Install Keepalived package for RHEL-based distributions
+  become: true
+  yum:
+    name: keepalived
+    state: present
+    enablerepo: "{{ 'cld-repository-el9' if (ansible_distribution.split(' ') | first | lower == 'red' and ansible_distribution_major_version == '8') else 'cld-repository-el' + ansible_distribution_major_version }}"
+    disablerepo: "*"
+  when: ansible_distribution.split(' ') | first | lower in ['red', 'almalinux', 'centos']

@@ -1,8 +1,27 @@
 ---
 
-- hosts: all
+- name: Delete PostgreSQL Database
+  hosts: localhost
   gather_facts: false
+  pre_tasks:
+    - name: Fail if some of the mandatory extra variables are not set
+      fail:
+        msg: "Extra variable {{ item }} is not set."
+      loop:
+        - server_port
+        - database_name
+        - admin_password
+      when: item is undefined
+
   tasks:
-    - include_role:
-        name: delete-postgres-db
-        
+    - name: Include role for PostgreSQL Database deletion
+      vars:
+        postgresql_server_address: "{{ hostvars[groups['postgresql_entrypoint'][0]]['ansible_host'] }}"
+        postgresql_server_port: "{{ server_port }}"
+        postgresql_database_name: "{{ database_name }}"
+        postgresql_username: postgres
+        postgresql_password: "{{ admin_password }}"
+      include_role:
+        name: post-installation/delete-postgres-db
+        apply:
+          delegate_to: "{{ groups['databases'][0] }}"

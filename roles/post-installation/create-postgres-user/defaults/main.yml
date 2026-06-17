@@ -1,0 +1,3 @@
+postgresql_data_directory: /usr/local/pgsql/data
+postgresql_systemd_service: cld_postgresql
+patroni_port: 8008

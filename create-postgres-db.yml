@@ -1,8 +1,39 @@
 ---
 
-- hosts: all
+- name: Create PostgreSQL Database
+  hosts: localhost
   gather_facts: false
+  pre_tasks:
+    - name: Fail if some of the mandatory extra variables are not set
+      fail:
+        msg: "Extra variable {{ item }} is not set."
+      loop:
+        - database_owner
+        - server_port
+        - database_name
+        - admin_password
+      when: item is undefined
+
   tasks:
-    - include_role:
-        name: create-postgres-db
-        
+    - name: Include role for PostgreSQL Database creation
+      vars:
+        postgresql_database_owner: "{{ database_owner }}"
+        postgresql_server_address: "{{ hostvars[groups['postgresql_entrypoint'][0]]['ansible_host'] }}"
+        postgresql_server_port: "{{ server_port }}"
+        postgresql_database_name: "{{ database_name }}"
+        postgresql_username: postgres
+        postgresql_password: "{{ admin_password }}"
+      include_role:
+        name: post-installation/create-postgres-db
+        apply:
+          delegate_to: "{{ groups['databases'][0] }}"
+    
+- name: Import playbook for migration
+  vars:
+    server_port: "{{ server_port }}"
+    migration_db: "{{ database_name }}"
+    admin_password: "{{ admin_password }}"
+    migration_script: "{{ migration_script }}"
+    database_owner: "{{ database_owner }}"
+  import_playbook: perform-migration.yml
+  when: perform_migration | default(false) | bool

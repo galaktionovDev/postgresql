@@ -1,0 +1,58 @@
+---
+
+- name: Reload HAProxy
+  become: true
+  systemd_service:
+    name: haproxy
+    state: reloaded
+
+- name: Inspect PostgreSQL backend hosts status
+  uri:
+    url: "http://localhost:{{ haproxy_port }}/haproxy_stats\\;csv"
+    url_username: "{{ haproxy_admin_username }}"
+    url_password: "{{ haproxy_admin_password }}"
+    return_content: true
+  register: backend_status
+  tags:
+    - haproxy-info
+  until: "not (backend_status.content | split('\n') | select('search', 'postgres_backend,postgresql') | select('search', '/') | list)"
+  retries: 10
+  delay: 3
+
+- name: Set PostgreSQL backend hosts status fact
+  set_fact:
+    postgresql_backend_hosts_status: |
+      {% set results = [] %}
+      {%- for line in backend_status.content | split('\n') if 'postgres_backend,postgresql' in line -%}
+        {%- set columns = line.split(',') -%}
+          {% set _ = results.append({ columns[1]: { "HAProxy PostgreSQL backend host status": columns[17], "Patroni role": "master" if "UP" in columns[17] else "replica" } }) %}
+      {% endfor %}
+      {{ { inventory_hostname: results } }}
+  tags:
+    - haproxy-info
+
+- name: Show PostgreSQL backend hosts status
+  run_once: true
+  debug:
+    var: "postgresql_backend_hosts_status"
+  tags:
+    - haproxy-info
+
+- name: Set Patroni backend hosts status fact
+  set_fact:
+    patroni_backend_hosts_status: |
+      {% set results = [] %}
+      {%- for line in backend_status.content | split('\n') if 'patroni_backend,patroni' in line -%}
+        {%- set columns = line.split(',') -%}
+          {% set _ = results.append({ columns[1]: { "HAProxy Patroni backend host status": columns[17], "Patroni role": "master" if "UP" in columns[17] else "replica" } }) %}
+      {% endfor %}
+      {{ { inventory_hostname: results } }}
+  tags:
+    - haproxy-info
+
+- name: Show Patroni backend hosts status
+  run_once: true
+  debug:
+    var: "patroni_backend_hosts_status"
+  tags:
+    - haproxy-info
