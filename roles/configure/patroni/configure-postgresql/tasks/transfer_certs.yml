@@ -1,0 +1,11 @@
+---
+
+- name: Transfer PostgreSQL certificates to PostgreSQL servers
+  copy:
+    src: "{{ playbook_dir }}/generated/{{ item }}"
+    dest: /tmp
+  loop:
+    - "ca/ca.crt"
+    - "postgres/postgres-{{ postgresql_endpoint }}.crt"
+    - "postgres/postgres-{{ postgresql_endpoint }}.key"
+    - "postgres/postgres-{{ postgresql_endpoint }}.pem"

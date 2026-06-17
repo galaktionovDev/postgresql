@@ -1,0 +1,16 @@
+---
+
+- name: Include tasks for Keepalived packages installation
+  import_tasks: install.yml
+  tags:
+    - install-keepalived
+
+- name: Include tasks for Keepalived configuration
+  import_tasks: configure.yml
+  tags:
+    - configure-keepalived
+
+- name: Include tasks for Keepalived start
+  import_tasks: start.yml
+  tags:
+    - start-keepalived

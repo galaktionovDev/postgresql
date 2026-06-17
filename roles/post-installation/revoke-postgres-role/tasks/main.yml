@@ -1,0 +1,61 @@
+---
+
+- name: Manage PostgreSQL user permissions
+  become: true
+  block:
+    - name: Set version flag
+      set_fact:
+        is_modern_pg: "{{ postgresql_version | int >= 14 }}"
+
+    - name: Revoke pg_read_all_data (PG 14+)
+      community.postgresql.postgresql_membership:
+        group: pg_read_all_data
+        target_roles: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        login_db: "{{ postgresql_database }}"
+        state: absent
+      when: 
+        - is_modern_pg
+        - postgresql_role | lower in ['read', 'read/write']
+
+    - name: Revoke legacy read privileges (PG < 14)
+      community.postgresql.postgresql_privs:
+        privs: SELECT
+        objs: ALL_IN_SCHEMA
+        schema: public
+        role: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        login_db: "{{ postgresql_database }}"
+        state: absent
+      when:
+        - not is_modern_pg
+        - postgresql_role | lower in ['read', 'read/write']
+
+    - name: Revoke write privileges
+      community.postgresql.postgresql_privs:
+        privs: USAGE,CREATE
+        objs: public
+        type: schema
+        role: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        login_db: "{{ postgresql_database }}"
+        state: absent
+      when:
+        - postgresql_role | lower == 'read/write'
+ 
+- set_stats:
+    data:
+      db_roles:
+        username: "{{ postgresql_username }}"
+        role_name: "{{ postgresql_role }}"
+        database_name: "{{ postgresql_database }}"
+        

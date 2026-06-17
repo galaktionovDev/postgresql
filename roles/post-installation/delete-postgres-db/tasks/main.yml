@@ -1,0 +1,28 @@
+---
+
+- name: Terminate connections to the database
+  community.postgresql.postgresql_query:
+    db: postgres
+    query: "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid();"
+    positional_args:
+      - "{{ postgresql_database_name }}"
+    login_host: "{{ postgresql_server_address }}"
+    login_user: "{{ postgresql_username }}"
+    login_password: "{{ postgresql_password }}"
+    login_port: "{{ postgresql_server_port }}"
+
+- name: Ensure Database is deleted
+  community.postgresql.postgresql_db:
+    name: "{{ postgresql_database_name }}"
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: "{{ postgresql_username }}"
+    login_password: "{{ postgresql_password }}"
+    maintenance_db: postgres
+    state: absent
+  
+- set_stats:
+    data:
+      db_info:
+        database_name: "{{ postgresql_database_name }}"
+        

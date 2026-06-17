@@ -1,0 +1,17 @@
+---
+
+- name: Include tasks for etcd installation
+  include_tasks: install.yml
+
+- name: Set etcd edpoint fact
+  set_fact:
+    etcd_endpoint: "{{ hostvars[inventory_hostname].ansible_host | replace('.', '_') }}"
+
+- name: Include tasks for etcd certififcates transfer
+  include_tasks: transfer_certs.yml
+
+- name: Include tasks for etcd configuration
+  include_tasks: configure.yml
+
+- name: Include tasks for etcd start
+  include_tasks: start.yml

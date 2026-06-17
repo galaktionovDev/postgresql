@@ -1,0 +1,4 @@
+---
+
+postgresql_data_directory: "{{ postgresql_directory }}/data"
+postgresql_ssl_directory: "{{ postgresql_directory }}/ssl"

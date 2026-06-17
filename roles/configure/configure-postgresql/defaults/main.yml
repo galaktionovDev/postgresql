@@ -1,0 +1,5 @@
+---
+postgresql_version: 18
+postgresql_directory: /usr/local/pgsql
+server_port: 5432
+postgresql_systemd_service: cld_postgresql

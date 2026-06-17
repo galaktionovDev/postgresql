@@ -1,0 +1,30 @@
+---
+
+- name: Generate CA private key
+  community.crypto.openssl_privatekey:
+    path: "{{ playbook_dir }}/generated/ca/ca.key"
+    size: 2048
+    type: RSA
+    mode: '640'
+    force: true
+
+- name: Create certificate request for CA
+  community.crypto.openssl_csr:
+    path: "{{ playbook_dir }}/generated/ca/ca.csr"
+    privatekey_path: "{{ playbook_dir }}/generated/ca/ca.key"
+    basic_constraints:
+      - "CA:TRUE"
+    key_usage:
+      - keyCertSign
+      - cRLSign
+    common_name: "etcd-ca"
+    force: true
+
+- name: Generate selfsigned CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ playbook_dir }}/generated/ca/ca.crt"
+    csr_path: "{{ playbook_dir }}/generated/ca/ca.csr"
+    privatekey_path: "{{ playbook_dir }}/generated/ca/ca.key"
+    provider: selfsigned
+    selfsigned_not_after: "+7300d"
+    force: true

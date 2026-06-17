@@ -1,0 +1,12 @@
+---
+
+haproxy_admin_username: admin
+haproxy_admin_password: haproxy_stats
+
+server_port: 5432
+patroni_port: 8008
+haproxy_port: 8404
+
+node_exporter_path: "/app/node_exporter"
+node_exporter_version: "1.7.0"
+node_exporter_name: "node_exporter-{{ node_exporter_version }}.linux-amd64"

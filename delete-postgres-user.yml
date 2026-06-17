@@ -1,8 +1,28 @@
 ---
 
-- hosts: all
+- name: Delete PostgreSQL user
+  hosts: localhost
   gather_facts: false
+  pre_tasks:
+    - name: Fail if some of the mandatory extra variables are not set
+      fail:
+        msg: "Extra variable {{ item }} is not set."
+      loop:
+        - server_port
+        - username
+        - admin_password
+        - deployment_option
+      when: vars[item] is undefined
+
   tasks:
-    - include_role:
-        name: delete-postgres-user
-        
+    - name: Include role for PostgreSQL user deletion
+      vars:
+        postgresql_server_address: "{{ hostvars[groups['postgresql_entrypoint'][0]]['ansible_host'] }}"
+        postgresql_server_port: "{{ server_port }}"
+        postgresql_username: "{{ username }}"
+        postgresql_admin_password: "{{ admin_password }}"
+        deployment_option: "{{ deployment_option }}"
+      include_role:
+        name: post-installation/delete-postgres-user
+        apply:
+          delegate_to: "{{ groups['databases'][0] }}"

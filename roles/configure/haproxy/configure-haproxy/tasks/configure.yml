@@ -1,0 +1,89 @@
+---
+
+- name: Ensure HAProxy errors directory is created
+  become: true
+  file:
+    path: /etc/haproxy/errors
+    state: directory
+
+- name: Create HAProxy configuration file
+  become: true
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+
+- name: Gather information about packages installed
+  package_facts:
+    manager: auto
+
+- name: Allow HAProxy and PostgreSQL ports on RHEL-like distributions
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - "{{ server_port }}"
+    - "{{ haproxy_port }}"
+    - "{{ patroni_port }}"
+  when: "'firewalld' in ansible_facts.packages"
+
+- name: Allow HAProxy and PostgreSQL ports on Debian-like distributions
+  become: true
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+  loop:
+    - "{{ server_port }}"
+    - "{{ haproxy_port }}"
+    - "{{ patroni_port }}"
+  when: "'ufw' in ansible_facts.packages"
+
+- name: Allow HAProxy to bind to nonlocal IP (VIP)
+  become: true
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true  
+
+- name: Configure SELinux to allow HAProxy and Patroni connections
+  become: true
+  when: 
+    - ansible_selinux is defined
+    - ansible_selinux.status != 'disabled'
+  block:
+    - name: Allow HAProxy and Patroni ports in SELinux
+      community.general.seport:
+        ports: "{{ item }}"
+        proto: tcp
+        setype: postgresql_port_t
+        state: present
+      loop:
+        - "{{ server_port }}"
+        - "{{ patroni_port }}"
+        - "{{ haproxy_port }}"
+
+    - name: Allow HAProxy to connect to backend servers
+      ansible.builtin.seboolean:
+        name: haproxy_connect_any
+        state: yes
+        persistent: yes
+
+- name: Set SELinux context for node_exporter executable
+  community.general.sefcontext:
+    target: "{{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter"
+    setype: bin_t
+    state: present
+  register: selinux_fcontext
+  ignore_errors: true
+
+- name: Apply SELinux context to node_exporter executable
+  ansible.builtin.command:
+    cmd: "restorecon -v {{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter"
+  when: selinux_fcontext.changed
+  changed_when: false
+  ignore_errors: true
+  notify: restart_node_exporter

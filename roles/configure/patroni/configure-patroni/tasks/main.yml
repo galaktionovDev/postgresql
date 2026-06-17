@@ -1,0 +1,35 @@
+---
+
+- name: Include tasks for Patroni package installation
+  import_tasks: install.yml
+  tags:
+    - install-patroni
+
+- name: Include role for etcd configuration
+  import_role:
+    name: configure/patroni/configure-etcd
+  tags:
+    - configure-etcd
+
+- name: Include role for PostgreSQL configuration
+  import_role:
+    name: configure/patroni/configure-postgresql
+  tags:
+    - configure-postgresql
+
+- name: Set Patroni edpoint fact
+  set_fact:
+    patroni_endpoint: "{{ hostvars[inventory_hostname].ansible_host }}"
+  tags:
+    - configure-patroni
+    - start-patroni
+
+- name: Include tasks for Patroni configuration
+  import_tasks: configure.yml
+  tags:
+    - configure-patroni
+
+- name: Include tasks for Patroni start
+  import_tasks: start.yml
+  tags:
+    - start-patroni

@@ -1,0 +1,8 @@
+postgresql_admin_password_file: /tmp/.pg_pass
+
+postgresql_binary_directory:
+  apt: /usr/lib/postgresql/{{ postgresql_version }}/bin
+  yum: /usr/pgsql-{{ postgresql_version }}/bin
+
+postgresql_data_directory: "{{ postgresql_directory }}/data"
+postgresql_ssl_directory: "{{ postgresql_directory }}/ssl"

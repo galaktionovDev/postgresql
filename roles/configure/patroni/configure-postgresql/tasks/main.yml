@@ -1,0 +1,20 @@
+---
+
+- name: Include tasks for PostgreSQL packages installation
+  import_tasks: install.yml
+  tags:
+    - install
+
+- name: Set PostgreSQL edpoint fact
+  set_fact:
+    postgresql_endpoint: "{{ hostvars[inventory_hostname].ansible_host | replace('.', '_') }}"
+
+- name: Include tasks for PostgreSQL certificates transfer
+  import_tasks: transfer_certs.yml
+  tags:
+    - transfer-certs
+
+- name: Include tasks for PostgreSQL configuration
+  import_tasks: configure.yml
+  tags:
+    - configure

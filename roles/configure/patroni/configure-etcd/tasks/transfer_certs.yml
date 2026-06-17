@@ -1,0 +1,10 @@
+---
+
+- name: Transfer etcd certificates to PostgreSQL servers
+  copy:
+    src: "{{ playbook_dir }}/generated/{{ item }}"
+    dest: /tmp
+  loop:
+    - "ca/ca.crt"
+    - "etcd/etcd-{{ etcd_endpoint }}.crt"
+    - "etcd/etcd-{{ etcd_endpoint }}.key"

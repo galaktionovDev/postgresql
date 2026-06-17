@@ -1,0 +1,116 @@
+---
+
+- name: Create etcd user home directory
+  become: true
+  file:
+    path: "{{ etcd_home_directory }}"
+    state: directory
+
+- name: Add etcd user
+  become: true
+  user:
+    system: true
+    create_home: true
+    home: "{{ etcd_home_directory }}"
+    shell: /bin/false
+    name: etcd
+
+- name: Change etcd user home directory's ownership
+  become: true
+  file:
+    path: "{{ etcd_home_directory }}"
+    state: directory
+    owner: etcd
+    group: etcd
+    recurse: true
+
+- name: Change etcd user home directory's permissions
+  become: true
+  file:
+    path: "{{ etcd_home_directory }}"
+    state: directory
+    mode: '700'
+
+- name: Create etcd configuration directories
+  become: true
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ etcd_config_directory }}"
+    - "{{ etcd_config_directory }}/ssl"
+
+- name: Copy etcd certificates to ssl directory
+  become: true
+  copy:
+    src: "/tmp/{{ item }}"
+    dest: "{{ etcd_config_directory }}/ssl"
+    remote_src: true
+  loop:
+    - "ca.crt"
+    - "etcd-{{ etcd_endpoint }}.crt"
+    - "etcd-{{ etcd_endpoint }}.key"
+  notify:
+    - Restart etcd
+
+- name: Change ownership of etcd directory
+  become: true
+  file:
+    path: "{{ etcd_config_directory }}"
+    owner: etcd
+    group: etcd
+    state: directory
+    recurse: true
+
+- name: Change permissions of key
+  become: true
+  file:
+    path: "{{ etcd_config_directory }}/ssl/etcd-{{ etcd_endpoint }}.key"
+    mode: '600'
+
+- name: Change permissions of certififcates
+  become: true
+  file:
+    path: "{{ etcd_config_directory }}/ssl/{{ item }}"
+    mode: '644'
+  loop:
+    - "ca.crt"
+    - "etcd-{{ etcd_endpoint }}.crt"
+
+- name: Create etcd environment file
+  become: true
+  template:
+    src: etcd.env.j2
+    dest: "{{ etcd_config_directory }}/etcd.env"
+
+- name: Create etcd unit file
+  become: true
+  copy:
+    src: etcd.service
+    dest: /etc/systemd/system/etcd.service
+
+- name: Gather information about packages installed
+  package_facts:
+    manager: auto
+
+- name: Allow etcd ports on RHEL-like distributions
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - 2379
+    - 2380
+  when: "'firewalld' in ansible_facts.packages"
+
+- name: Allow etcd ports on Debian-like distributions
+  become: true
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+  loop:
+    - 2379
+    - 2380
+  when: "'ufw' in ansible_facts.packages"
