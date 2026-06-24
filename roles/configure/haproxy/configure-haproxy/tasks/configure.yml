@@ -73,6 +73,7 @@
         persistent: yes
 
 - name: Set SELinux context for node_exporter executable
+  become: true
   community.general.sefcontext:
     target: "{{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter"
     setype: bin_t
@@ -81,6 +82,7 @@
   ignore_errors: true
 
 - name: Apply SELinux context to node_exporter executable
+  become: true
   ansible.builtin.command:
     cmd: "restorecon -v {{ node_exporter_path }}/{{ node_exporter_name }}/node_exporter"
   when: selinux_fcontext.changed
