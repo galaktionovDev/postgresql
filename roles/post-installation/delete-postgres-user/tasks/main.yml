@@ -9,43 +9,17 @@
     filter: databases
   register: db_info
 
-- name: Revoke database privileges
-  community.postgresql.postgresql_privs:
-    database: "{{ item }}"
-    role: "{{ postgresql_username }}"
-    type: database
-    privs: ALL
-    state: absent
-    login_host: "{{ postgresql_server_address }}"
-    login_port: "{{ postgresql_server_port }}"
-    login_user: postgres
-    login_password: "{{ postgresql_admin_password }}"
-  loop: "{{ db_info.databases.keys() | reject('match', 'template.*|postgres') | list }}"
-
-- name: Revoke schema privileges and Reassign ownership
-  community.postgresql.postgresql_privs:
-    database: "{{ item }}"
-    role: "{{ postgresql_username }}"
-    objs: public
-    type: schema
-    privs: ALL
-    state: absent
-    login_host: "{{ postgresql_server_address }}"
-    login_port: "{{ postgresql_server_port }}"
-    login_user: postgres
-    login_password: "{{ postgresql_admin_password }}"
-  loop: "{{ db_info.databases.keys() | reject('match', 'template.*|postgres') | list }}"
-
-- name: Reassign objects owned by user to postgres
-  community.postgresql.postgresql_owner:
+- name: Reassign owned objects and drop remaining privileges of the user in every database
+  community.postgresql.postgresql_query:
     db: "{{ item }}"
-    new_owner: postgres
-    reassign_owned_by: "{{ postgresql_username }}"
+    query:
+      - 'REASSIGN OWNED BY "{{ postgresql_username }}" TO postgres'
+      - 'DROP OWNED BY "{{ postgresql_username }}"'
     login_host: "{{ postgresql_server_address }}"
     login_port: "{{ postgresql_server_port }}"
     login_user: postgres
     login_password: "{{ postgresql_admin_password }}"
-  loop: "{{ db_info.databases.keys() | reject('match', 'template.*|postgres') | list }}"
+  loop: "{{ db_info.databases.keys() | reject('match', 'template.*') | list }}"
 
 - name: Ensure user is deleted
   community.postgresql.postgresql_user:
@@ -99,4 +73,3 @@
     data:
       db_users:
         username: "{{ username }}"
-     

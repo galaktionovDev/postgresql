@@ -1,61 +1,98 @@
 ---
 
-- name: Manage PostgreSQL user permissions
+- name: Revoke PostgreSQL access from a user
   become: true
   block:
-    - name: Set version flag
+
+    - name: Discover the owner of {{ postgresql_database }}
+      community.postgresql.postgresql_query:
+        db: "{{ postgresql_database }}"
+        query: >-
+          SELECT pg_catalog.pg_get_userbyid(datdba) AS owner
+          FROM pg_catalog.pg_database
+          WHERE datname = current_database()
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+      register: db_owner_query
+
+    - name: Set the database owner fact
       set_fact:
-        is_modern_pg: "{{ postgresql_version | int >= 14 }}"
+        postgresql_db_owner: "{{ db_owner_query.query_result[0].owner }}"
 
-    - name: Revoke pg_read_all_data (PG 14+)
-      community.postgresql.postgresql_membership:
-        group: pg_read_all_data
-        target_roles: "{{ postgresql_username }}"
+    - name: Remove default privileges for future objects
+      community.postgresql.postgresql_query:
+        db: "{{ postgresql_database }}"
+        query:
+          - >-
+            ALTER DEFAULT PRIVILEGES FOR ROLE "{{ postgresql_db_owner }}"
+            IN SCHEMA public REVOKE ALL ON TABLES FROM "{{ postgresql_username }}"
+          - >-
+            ALTER DEFAULT PRIVILEGES FOR ROLE "{{ postgresql_db_owner }}"
+            IN SCHEMA public REVOKE ALL ON SEQUENCES FROM "{{ postgresql_username }}"
         login_host: "{{ postgresql_server_address }}"
         login_port: "{{ postgresql_server_port }}"
         login_user: postgres
         login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
-        state: absent
-      when: 
-        - is_modern_pg
-        - postgresql_role | lower in ['read', 'read/write']
 
-    - name: Revoke legacy read privileges (PG < 14)
+    - name: Revoke all privileges on existing tables
       community.postgresql.postgresql_privs:
-        privs: SELECT
-        objs: ALL_IN_SCHEMA
+        db: "{{ postgresql_database }}"
+        type: table
         schema: public
+        objs: ALL_IN_SCHEMA
+        privs: ALL
         role: "{{ postgresql_username }}"
         login_host: "{{ postgresql_server_address }}"
         login_port: "{{ postgresql_server_port }}"
         login_user: postgres
         login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
         state: absent
-      when:
-        - not is_modern_pg
-        - postgresql_role | lower in ['read', 'read/write']
 
-    - name: Revoke write privileges
+    - name: Revoke all privileges on existing sequences
       community.postgresql.postgresql_privs:
-        privs: USAGE,CREATE
-        objs: public
-        type: schema
+        db: "{{ postgresql_database }}"
+        type: sequence
+        schema: public
+        objs: ALL_IN_SCHEMA
+        privs: ALL
         role: "{{ postgresql_username }}"
         login_host: "{{ postgresql_server_address }}"
         login_port: "{{ postgresql_server_port }}"
         login_user: postgres
         login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
         state: absent
-      when:
-        - postgresql_role | lower == 'read/write'
- 
+
+    - name: Revoke USAGE on schema public
+      community.postgresql.postgresql_privs:
+        db: "{{ postgresql_database }}"
+        type: schema
+        objs: public
+        privs: ALL
+        role: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        state: absent
+
+    - name: Revoke CONNECT on the database
+      community.postgresql.postgresql_privs:
+        db: "{{ postgresql_database }}"
+        type: database
+        objs: "{{ postgresql_database }}"
+        privs: ALL
+        role: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        state: absent
+
 - set_stats:
     data:
       db_roles:
         username: "{{ postgresql_username }}"
         role_name: "{{ postgresql_role }}"
         database_name: "{{ postgresql_database }}"
-        
