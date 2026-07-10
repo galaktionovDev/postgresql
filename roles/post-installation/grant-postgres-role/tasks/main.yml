@@ -1,93 +1,145 @@
 ---
- 
-- name: Manage PostgreSQL user permissions
+
+- name: Grant PostgreSQL access to a user
   become: true
   block:
-    - name: Set version flag
+
+    - name: Discover the owner of {{ postgresql_database }}
+      community.postgresql.postgresql_query:
+        db: "{{ postgresql_database }}"
+        query: >-
+          SELECT pg_catalog.pg_get_userbyid(datdba) AS owner
+          FROM pg_catalog.pg_database
+          WHERE datname = current_database()
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+      register: db_owner_query
+
+    - name: Set the database owner fact
       set_fact:
-        is_modern_pg: "{{ postgresql_version | int >= 14 }}"
+        postgresql_db_owner: "{{ db_owner_query.query_result[0].owner }}"
 
-    - name: Revoke pg_read_all_data (PG 14+)
-      community.postgresql.postgresql_membership:
-        group: pg_read_all_data
-        target_roles: "{{ postgresql_username }}"
-        login_host: "{{ postgresql_server_address }}"
-        login_port: "{{ postgresql_server_port }}"
-        login_user: postgres
-        login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
-        state: absent
-      when: is_modern_pg
 
-    - name: Revoke legacy read privileges (PG < 14)
+    - name: Grant CONNECT on the database
       community.postgresql.postgresql_privs:
-        privs: SELECT
-        objs: ALL_IN_SCHEMA
-        schema: public
+        db: "{{ postgresql_database }}"
+        type: database
+        objs: "{{ postgresql_database }}"
+        privs: CONNECT
         role: "{{ postgresql_username }}"
         login_host: "{{ postgresql_server_address }}"
         login_port: "{{ postgresql_server_port }}"
         login_user: postgres
         login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
-        state: absent
-      when: not is_modern_pg
+        state: present
 
-    - name: Revoke write privileges
+    - name: Grant USAGE on schema public
       community.postgresql.postgresql_privs:
-        privs: USAGE,CREATE
-        objs: public
+        db: "{{ postgresql_database }}"
         type: schema
-        role: "{{ postgresql_username }}"
-        login_host: "{{ postgresql_server_address }}"
-        login_port: "{{ postgresql_server_port }}"
-        login_user: postgres
-        login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
-        state: absent
-
-    - name: Grant Read access (Modern PG 14+)
-      community.postgresql.postgresql_membership:
-        group: pg_read_all_data
-        target_roles: "{{ postgresql_username }}"
-        login_host: "{{ postgresql_server_address }}"
-        login_port: "{{ postgresql_server_port }}"
-        login_user: postgres
-        login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
-        state: present
-      when: 
-        - postgresql_role | lower in ['read', 'read/write']
-        - is_modern_pg
-
-    - name: Grant Read access (Legacy PG < 14)
-      community.postgresql.postgresql_privs:
-        privs: SELECT
-        objs: ALL_IN_SCHEMA
-        schema: public
-        role: "{{ postgresql_username }}"
-        login_host: "{{ postgresql_server_address }}"
-        login_port: "{{ postgresql_server_port }}"
-        login_user: postgres
-        login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
-        state: present
-      when: 
-        - postgresql_role | lower in ['read', 'read/write']
-        - not is_modern_pg
-
-    - name: Grant Write access (USAGE and CREATE on schema)
-      community.postgresql.postgresql_privs:
-        privs: USAGE,CREATE
         objs: public
-        type: schema
+        privs: USAGE
         role: "{{ postgresql_username }}"
         login_host: "{{ postgresql_server_address }}"
         login_port: "{{ postgresql_server_port }}"
         login_user: postgres
         login_password: "{{ postgresql_admin_password }}"
-        login_db: "{{ postgresql_database }}"
         state: present
+
+
+    - name: Grant SELECT on all existing tables
+      community.postgresql.postgresql_privs:
+        db: "{{ postgresql_database }}"
+        type: table
+        schema: public
+        objs: ALL_IN_SCHEMA
+        privs: SELECT
+        role: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        state: present
+      when: postgresql_role | lower in ['read', 'read/write']
+
+    - name: Grant SELECT on all existing sequences
+      community.postgresql.postgresql_privs:
+        db: "{{ postgresql_database }}"
+        type: sequence
+        schema: public
+        objs: ALL_IN_SCHEMA
+        privs: SELECT
+        role: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        state: present
+      when: postgresql_role | lower in ['read', 'read/write']
+
+    - name: Grant SELECT on future tables/sequences created by the owner
+      community.postgresql.postgresql_query:
+        db: "{{ postgresql_database }}"
+        query:
+          - >-
+            ALTER DEFAULT PRIVILEGES FOR ROLE "{{ postgresql_db_owner }}"
+            IN SCHEMA public GRANT SELECT ON TABLES TO "{{ postgresql_username }}"
+          - >-
+            ALTER DEFAULT PRIVILEGES FOR ROLE "{{ postgresql_db_owner }}"
+            IN SCHEMA public GRANT SELECT ON SEQUENCES TO "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+      when: postgresql_role | lower in ['read', 'read/write']
+
+
+    - name: Grant INSERT, UPDATE, DELETE on all existing tables
+      community.postgresql.postgresql_privs:
+        db: "{{ postgresql_database }}"
+        type: table
+        schema: public
+        objs: ALL_IN_SCHEMA
+        privs: INSERT,UPDATE,DELETE
+        role: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        state: present
+      when: postgresql_role | lower == 'read/write'
+
+    - name: Grant USAGE, UPDATE on all existing sequences
+      community.postgresql.postgresql_privs:
+        db: "{{ postgresql_database }}"
+        type: sequence
+        schema: public
+        objs: ALL_IN_SCHEMA
+        privs: USAGE,UPDATE
+        role: "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
+        state: present
+      when: postgresql_role | lower == 'read/write'
+
+    - name: Grant DML on future tables/sequences created by the owner
+      community.postgresql.postgresql_query:
+        db: "{{ postgresql_database }}"
+        query:
+          - >-
+            ALTER DEFAULT PRIVILEGES FOR ROLE "{{ postgresql_db_owner }}"
+            IN SCHEMA public GRANT INSERT, UPDATE, DELETE ON TABLES TO "{{ postgresql_username }}"
+          - >-
+            ALTER DEFAULT PRIVILEGES FOR ROLE "{{ postgresql_db_owner }}"
+            IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO "{{ postgresql_username }}"
+        login_host: "{{ postgresql_server_address }}"
+        login_port: "{{ postgresql_server_port }}"
+        login_user: postgres
+        login_password: "{{ postgresql_admin_password }}"
       when: postgresql_role | lower == 'read/write'
 
 - set_stats:

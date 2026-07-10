@@ -14,7 +14,7 @@ vrrp_script check_haproxy {
 vrrp_instance VI_1 {
     state {{ 'MASTER' if host_index == 0 else 'BACKUP' }}
     interface {{ ansible_default_ipv4.interface }}
-    virtual_router_id 51
+    virtual_router_id {{ keepalived_virtual_router_id }}
     priority {{ 100 - host_index * 10 }}
     
     advert_int 1

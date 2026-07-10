@@ -9,6 +9,45 @@
     login_password: "{{ postgresql_password }}"
     maintenance_db: postgres
     owner: "{{ postgresql_database_owner }}" 
+
+- name: Revoke all privileges on the database from PUBLIC
+  community.postgresql.postgresql_privs:
+    db: "{{ postgresql_database_name }}"
+    type: database
+    objs: "{{ postgresql_database_name }}"
+    privs: ALL
+    role: PUBLIC
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: "{{ postgresql_username }}"
+    login_password: "{{ postgresql_password }}"
+    state: absent
+
+- name: Revoke all privileges on schema public from PUBLIC
+  community.postgresql.postgresql_privs:
+    db: "{{ postgresql_database_name }}"
+    type: schema
+    objs: public
+    privs: ALL
+    role: PUBLIC
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: "{{ postgresql_username }}"
+    login_password: "{{ postgresql_password }}"
+    state: absent
+
+- name: Ensure the owner keeps full control of schema public
+  community.postgresql.postgresql_privs:
+    db: "{{ postgresql_database_name }}"
+    type: schema
+    objs: public
+    privs: ALL
+    role: "{{ postgresql_database_owner }}"
+    login_host: "{{ postgresql_server_address }}"
+    login_port: "{{ postgresql_server_port }}"
+    login_user: "{{ postgresql_username }}"
+    login_password: "{{ postgresql_password }}"
+    state: present
   
 - set_stats:
     data:
