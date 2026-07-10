@@ -2,3 +2,5 @@
 
 keepalived_password: 3Q8azoG8DRAZmO4
 server_port: 5432
+
+keepalived_virtual_router_id: "{{ keepalived_address.split('/')[0].split('.')[-1] | int }}"

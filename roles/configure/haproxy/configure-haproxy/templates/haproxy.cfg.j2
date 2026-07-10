@@ -30,6 +30,8 @@ defaults
 frontend postgres_frontend
     bind *:{{ server_port }}
     mode tcp
+    option tcpka
+    timeout client 1h
     default_backend postgres_backend
 
 frontend patroni_frontend
@@ -39,10 +41,11 @@ frontend patroni_frontend
 
 backend postgres_backend
     mode tcp
+    option tcpka
     option httpchk GET /primary
     http-check expect status 200
     timeout connect 5s
-    timeout server 30s
+    timeout server 1h
 {% for db_host in groups['databases'] %}
     {% set local_patroni_endpoint = hostvars[db_host].ansible_host %}
     server postgresql-{{ local_patroni_endpoint | replace('.', '_') }} {{ local_patroni_endpoint }}:{{ server_port }} port {{ patroni_port }} check inter 5s fall 3 rise 2 check-ssl verify none

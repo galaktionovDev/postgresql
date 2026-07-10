@@ -4,6 +4,7 @@
   community.postgresql.postgresql_user:
     name: "{{ postgresql_username }}"
     password: "{{ postgresql_user_password }}"
+    role_attr_flags: "LOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE"
     login_host: "{{ postgresql_server_address }}"
     login_port: "{{ postgresql_server_port }}"
     login_user: postgres
